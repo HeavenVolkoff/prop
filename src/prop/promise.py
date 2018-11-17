@@ -3,6 +3,7 @@ __all__ = ("Promise",)
 # Internal
 import typing as T
 from abc import ABCMeta, abstractmethod
+from types import TracebackType
 from asyncio import CancelledError, AbstractEventLoop, shield, ensure_future
 
 # Project
@@ -22,7 +23,7 @@ async def resolve_awaitable(awaitable: T.Union[K, T.Awaitable[K]], loop: Abstrac
         return await result_fut
 
 
-class Promise(AbstractPromise[K], T.ContextManager):
+class Promise(AbstractPromise[K], T.ContextManager["Promise[K]"]):
     """Promise implementation that maintains the callback queue using :class:`~typing.Coroutine`.
     
     See: :class:`~.abstract.promise.Promise` for more information on the Promise abstract interface.
@@ -43,8 +44,14 @@ class Promise(AbstractPromise[K], T.ContextManager):
         self._is_managed = True
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: T.Optional[T.Type[BaseException]],
+        exc_value: T.Optional[BaseException],
+        traceback: T.Optional[TracebackType],
+    ) -> T.Optional[bool]:
         self.cancel()
+        return False
 
     def _assert_management(self) -> None:
         if self._is_managed:
