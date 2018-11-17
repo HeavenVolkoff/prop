@@ -1,8 +1,8 @@
 ## Prop
 Promises with opinions for asyncio and Python 3.6+
 
-> This project is a new iteration of a submodules from another project of mine: [aRx](https://github.com/HeavenVolkoff/aRx).
-> So, for older revisions of the code check out there.
+> This project is a revitalization of a promise submodules from another project of mine: [aRx](https://github.com/HeavenVolkoff/aRx).
+> So, for older revisions of the code check there.
 
 ### Summary
 + [docs](./docs):
