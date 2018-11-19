@@ -5,9 +5,11 @@ import typing as T
 from abc import ABCMeta, abstractmethod
 from asyncio import Task, Future, InvalidStateError, isfuture, ensure_future
 
+# External
+from async_tools.abstract.loopable import Loopable
+
 # Project
 from .base import Base
-from .loopable import Loopable
 
 # Generic types
 K = T.TypeVar("K")
