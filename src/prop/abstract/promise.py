@@ -5,15 +5,15 @@ import typing as T
 from abc import ABCMeta, abstractmethod
 from asyncio import Task, Future, InvalidStateError, isfuture, ensure_future
 
-# Project
-from .base import Base
-from .loopable import Loopable
+# External
+from async_tools.abstract.loopable import Loopable
+from async_tools.abstract.basic_repr import BasicRepr
 
 # Generic types
 K = T.TypeVar("K")
 
 
-class Promise(T.Awaitable[K], Base, Loopable, metaclass=ABCMeta):
+class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
     """An abstract Promise implementation that encapsulate an awaitable.
 
     .. Warning::
