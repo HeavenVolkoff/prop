@@ -1,12 +1,14 @@
 """Asynchronous Reactive eXtensions."""
 
-__all__ = ("__version__", "Promise")
+__all__ = ("__version__", "Promise", "ChainPromise", "AbstractPromise")
 
 # External
 import pkg_resources
 
 # Project
 from .promise import Promise
+from .chain_promise import ChainPromise
+from .abstract.promise import Promise as AbstractPromise
 
 try:
     __version__ = str(
