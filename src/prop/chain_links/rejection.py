@@ -45,4 +45,5 @@ class RejectionPromise(ChainedPromise[K, L]):
         except CancelledError:
             raise  # CancelledError must be propagated
         except Exception as exc:
+            self._can_cancel = False
             return await attempt_await(on_reject(exc), self.loop)

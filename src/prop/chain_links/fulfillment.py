@@ -37,4 +37,6 @@ class FulfillmentPromise(ChainedPromise[K, L]):
             Callback result.
 
         """
-        return await attempt_await(on_fulfilled(await promise), self.loop)
+        result = await promise
+        self._can_cancel = False
+        return await attempt_await(on_fulfilled(result), self.loop)

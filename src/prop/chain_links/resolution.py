@@ -23,9 +23,9 @@ class ResolutionPromise(ChainedPromise[K, K]):
 
         self._direct_cancellation = False
 
-    def cancel(self) -> bool:
+    def cancel(self, *, force: bool = False) -> bool:
         self._direct_cancellation = True
-        return super().cancel()
+        return super().cancel(force=force)
 
     async def _wrapper(self, promise: T.Awaitable[K], on_resolution: T.Callable[[], T.Any]) -> K:
         """Coroutine that wraps a promise and manages a resolution callback.
@@ -41,6 +41,8 @@ class ResolutionPromise(ChainedPromise[K, K]):
         try:
             return await promise
         finally:
+            self._can_cancel = False
+
             # Finally executes always, except in the case itself was stopped.
             if not self._direct_cancellation:
                 await attempt_await(on_resolution(), self.loop)

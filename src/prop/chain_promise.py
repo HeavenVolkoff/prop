@@ -73,6 +73,15 @@ class ChainedPromise(T.Generic[K, L], ChainPromise[K], metaclass=ABCMeta):
         # Disable the "destroy pending task" warning
         self._fut._log_destroy_pending = False  # type: ignore
 
+        # Flag for controlling cancellation
+        self._can_cancel = True
+
+    def cancel(self, *, force: bool = False) -> bool:
+        if force or self._can_cancel:
+            return super().cancel()
+
+        return False
+
     @abstractmethod
     def _wrapper(self, promise: T.Awaitable[K], callback: T.Callable[..., T.Any]) -> T.Any:
         raise NotImplementedError
