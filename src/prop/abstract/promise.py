@@ -1,9 +1,9 @@
-__all__ = ("Promise",)
+__all__ = ("AbstractPromise",)
 
 # Internal
 import typing as T
 from abc import ABCMeta, abstractmethod
-from asyncio import Task, Future, InvalidStateError, isfuture, ensure_future
+from asyncio import Task, Future, AbstractEventLoop, InvalidStateError, isfuture, ensure_future
 
 # External
 from async_tools.abstract.loopable import Loopable
@@ -13,7 +13,7 @@ from async_tools.abstract.basic_repr import BasicRepr
 K = T.TypeVar("K")
 
 
-class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
+class AbstractPromise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
     """An abstract Promise implementation that encapsulate an awaitable.
 
     .. Warning::
@@ -27,30 +27,44 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
     def __init__(
         self,
         awaitable: T.Optional[T.Union[T.Awaitable[K], T.Coroutine[T.Any, T.Any, K]]] = None,
+        *,
+        loop: T.Optional[AbstractEventLoop] = None,
         **kwargs: T.Any,
     ) -> None:
         """Promise constructor.
 
         Arguments:
             awaitable: The awaitable object to be encapsulated.
+            loop: Current asyncio loop.
             kwargs: Keyword parameters for super.
 
         """
         # Retrieve loop from awaitable if available
-        if kwargs.get("loop", None) is None:
-            if isfuture(awaitable) or isinstance(awaitable, Loopable):
-                kwargs["loop"] = getattr(awaitable, "_loop", None)
-            else:
-                raise TypeError(
-                    "Couldn't retrieve loop from awaitable, it must be passed explicitly"
-                )
+        if loop is None:
+            if isinstance(awaitable, Loopable):
+                loop = awaitable.loop
+            elif isfuture(awaitable):
+                try:
+                    get_loop = awaitable.get_loop  # type: ignore
+                except AttributeError:  # Python <= 3.7
+                    loop = getattr(awaitable, "_loop", None)
+                else:
+                    loop = get_loop()
 
-        super().__init__(**kwargs)
+        super().__init__(loop=loop, **kwargs)
 
         # Internal
-        self._fut: Future[K] = ensure_future(
-            awaitable, loop=self.loop
-        ) if awaitable else self.loop.create_future()
+        self._fut: Future[K] = (
+            ensure_future(awaitable, loop=self.loop) if awaitable else self.loop.create_future()
+        )
+        self._notify_chain: T.Optional["Future[None]"] = None
+
+    @property
+    def notify_chain(self) -> "Future[None]":
+        if self._notify_chain is None:
+            self._notify_chain = self.loop.create_future()
+
+        return self._notify_chain
 
     def __await__(self) -> T.Generator[T.Any, None, K]:
         return self._fut.__await__()
@@ -64,14 +78,21 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         """
         return self._fut.done()
 
-    def cancel(self) -> bool:
-        """Cancel the promise and the underlining future.
+    def cancel(self, *, chain: bool = False) -> bool:
+        """Cancel the promise and chain.
 
         Returns:
             Boolean indicating if the cancellation occurred or not.
 
         """
-        return self._fut.cancel()
+        if self._fut.cancel():
+            return True
+
+        if chain and self._notify_chain:
+            self._notify_chain.cancel()
+            return True
+
+        return False
 
     def cancelled(self) -> bool:
         """Indicates whether promise is cancelled or not.
@@ -119,7 +140,7 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         self._fut.set_exception(error)
 
     @abstractmethod
-    def then(self, on_fulfilled: T.Callable[[K], T.Any]) -> "Promise[T.Any]":
+    def then(self, on_fulfilled: T.Callable[[K], T.Any]) -> "AbstractPromise[T.Any]":
         """Chain a callback to be executed when the Promise resolves.
 
         Arguments:
@@ -136,7 +157,7 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         raise NotImplemented()
 
     @abstractmethod
-    def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> "Promise[T.Any]":
+    def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> "AbstractPromise[T.Any]":
         """Chain a callback to be executed when the Promise fails to resolve.
 
         Arguments:
@@ -153,7 +174,7 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         raise NotImplemented()
 
     @abstractmethod
-    def lastly(self, on_fulfilled: T.Callable[[], T.Any]) -> "Promise[T.Any]":
+    def lastly(self, on_fulfilled: T.Callable[[], T.Any]) -> "AbstractPromise[T.Any]":
         """Chain a callback to be executed when the Promise concludes.
 
         Arguments:

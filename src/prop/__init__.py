@@ -7,8 +7,8 @@ import pkg_resources
 
 # Project
 from .promise import Promise
+from .abstract import AbstractPromise
 from .chain_promise import ChainPromise
-from .abstract.promise import Promise as AbstractPromise
 
 try:
     __version__ = str(

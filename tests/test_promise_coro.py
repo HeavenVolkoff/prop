@@ -36,10 +36,7 @@ class TestPromiseCoro(asynctest.TestCase, unittest.TestCase):
 
     async def test_coro_missing_loop(self):
         coro = success_sleep()
-        with self.assertRaises(TypeError):
-            await Promise(coro)
-
-        await coro
+        await Promise(coro)
 
     async def test_coro_success(self):
         self.assertEqual(await Promise(success_sleep(), loop=self.loop), SUCCESS_RESULT)

@@ -1,10 +1,11 @@
 __all__ = ("Promise",)
 
+
 # Internal
 import typing as T
 
 # Project
-from .chain_promise import ChainPromise, ChainedPromise
+from .chain_promise import ChainPromise, ChainLinkPromise
 
 # Generic types
 K = T.TypeVar("K")
@@ -28,7 +29,7 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
         return self
 
     def __exit__(self, _: T.Any, __: T.Any, ___: T.Any) -> T.Optional[bool]:
-        self.cancel()
+        self.cancel(chain=True)
         return False
 
     def _assert_management(self) -> None:
@@ -41,7 +42,7 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
 
     def then(
         self, on_fulfilled: T.Callable[[K], T.Union[L, T.Awaitable[L]]]
-    ) -> ChainedPromise[K, L]:
+    ) -> ChainLinkPromise[L, K]:
         """Add management control to then
 
         See: :meth:`~.promise.Promise.then` for more information.
@@ -52,7 +53,7 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
 
     def catch(
         self, on_reject: T.Callable[[Exception], T.Union[L, T.Awaitable[L]]]
-    ) -> ChainedPromise[K, L]:
+    ) -> ChainLinkPromise[T.Union[L, K], K]:
         """Add management control to catch
 
         See: :meth:`~.promise.Promise.catch` for more information.
@@ -61,7 +62,7 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
         self._assert_management()
         return super().catch(on_reject)
 
-    def lastly(self, on_resolved: T.Callable[[], T.Any]) -> ChainedPromise[K, K]:
+    def lastly(self, on_resolved: T.Callable[[], T.Any]) -> ChainLinkPromise[K, K]:
         """Add management control to lastly
 
         See: :meth:`~.promise.Promise.lastly` for more information.

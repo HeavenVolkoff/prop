@@ -203,6 +203,142 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
 
         self.assertEqual(result, 20)
 
+    async def test_chain_cancellation_sync(self):
+        with Promise(self.fut) as p:
+            p.resolve(10)
+            t1 = p.then(lambda x: x * 2)
+            t2 = t1.then(lambda x: x * 2)
+            t3 = t2.then(lambda x: x * 2)
+
+            self.assertEqual(await p, 10)
+
+        with self.assertRaises(CancelledError):
+            await p.notify_chain
+
+        self.assertEqual(await t1, 20)
+        self.assertEqual(await t2, 40)
+        self.assertEqual(await t3, 80)
+
+    async def test_chain_cancellation_async(self):
+        with Promise(self.fut) as p:
+            p.resolve(10)
+            t1 = p.then(lambda x: sum_with_sleep(x, 10))
+            t2 = t1.then(lambda x: x * 2)
+            t3 = t2.then(lambda x: sum_with_sleep(x, 10))
+
+            self.assertEqual(await p, 10)
+
+        with self.assertRaises(CancelledError):
+            await t1
+
+        with self.assertRaises(CancelledError):
+            await t2
+
+        with self.assertRaises(CancelledError):
+            await t3
+
+    async def test_chain_cancellation_branch(self):
+        with Promise(self.fut) as p:
+            p.resolve(10)
+            t1 = p.then(lambda x: sum_with_sleep(x, 10))
+            t2 = p.then(lambda x: x * 2)
+            t3 = p.then(lambda x: sum_with_sleep(x, 10))
+
+            t1.cancel()
+
+            self.assertEqual(await p, 10)
+
+            with self.assertRaises(CancelledError):
+                await t1
+
+            self.assertEqual(await t2, 20)
+            self.assertEqual(await t3, 20)
+
+    async def test_chain_cancellation_after_resolution(self):
+        with Promise(self.fut) as p:
+            p.resolve(10)
+
+            self.assertEqual(await p, 10)
+            t1 = p.then(lambda x: x * 2)
+
+            self.assertEqual(await t1, 20)
+
+        t2 = t1.then(lambda x: sum_with_sleep(x, 10))
+
+        with self.assertRaises(CancelledError):
+            await t2
+
+    async def test_chain_cancellation_after_resolution_2(self):
+        with Promise(self.fut) as p:
+            p.resolve(10)
+
+            self.assertEqual(await p, 10)
+            t1 = p.then(lambda x: x * 2)
+
+            self.assertEqual(await t1, 20)
+
+            t2 = t1.then(lambda x: sum_with_sleep(x, 10))
+
+            t1.cancel(chain=True)
+
+            with self.assertRaises(CancelledError):
+                await t2
+
+    async def test_chain_cancellation_after_resolution_3(self):
+        with Promise(self.fut) as p:
+            p.resolve(10)
+
+            self.assertEqual(await p, 10)
+            t1 = p.then(lambda x: x * 2)
+
+            self.assertEqual(await t1, 20)
+
+            t2 = t1.then(lambda x: sum_with_sleep(x, 10))
+
+            p.cancel(chain=True)
+
+            with self.assertRaises(CancelledError):
+                await t2
+
+    async def test_chain_cancellation_sync_edge_case(self):
+        with Promise(self.fut) as p:
+            p.resolve(10)
+            t1 = p.then(lambda x: x * 2)
+            self.assertEqual(await p, 10)
+
+        with self.assertRaises(CancelledError):
+            await p.notify_chain
+
+        self.assertEqual(await t1, 20)
+
+        t2 = t1.then(lambda x: sum_with_sleep(x, 10))
+
+        with self.assertRaises(CancelledError):
+            await t2
+
+    async def test_task_cancellation_false(self):
+        async def task(_):
+            t1.cancel(task=False)
+            await sleep(DEFAULT_SLEEP)
+            return 0
+
+        with Promise(self.fut) as p:
+            p.resolve(10)
+            t1 = p.then(task)
+            self.assertEqual(await t1, 0)
+
+    async def test_task_cancellation_true(self):
+        async def task(_):
+            t1.cancel(task=True)
+            await sleep(DEFAULT_SLEEP)
+            return 0
+
+        with Promise(self.fut) as p:
+            p.resolve(10)
+            t1 = p.then(task)
+            with self.assertRaises(CancelledError):
+                await t1
+
 
 if __name__ == "__main__":
     unittest.main()
