@@ -3,7 +3,7 @@ __all__ = ("ChainPromise", "ChainLinkPromise")
 # Internal
 import typing as T
 from abc import ABCMeta, abstractmethod
-from asyncio import FIRST_COMPLETED, Future, CancelledError, wait, shield
+from asyncio import FIRST_COMPLETED, CancelledError, wait, shield
 
 # External
 from async_tools.attempt_await import attempt_await
