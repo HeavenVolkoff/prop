@@ -5,7 +5,7 @@ import typing as T
 
 # Project
 from ..chain_promise import ChainLinkPromise
-from ..abstract.promise import AbstractPromise
+from ..abstract.promise import Promise
 
 # Generic types
 K = T.TypeVar("K")
@@ -15,7 +15,7 @@ L = T.TypeVar("L")
 class FulfillmentPromise(ChainLinkPromise[K, L]):
     def __init__(
         self,
-        promise: AbstractPromise[L],
+        promise: Promise[L],
         on_fulfilled: T.Callable[[L], T.Union[K, T.Awaitable[K]]],
         **kwargs: T.Any,
     ) -> None:

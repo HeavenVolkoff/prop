@@ -1,2 +1,2 @@
 # Project
-from .promise import AbstractPromise
+from .promise import Promise

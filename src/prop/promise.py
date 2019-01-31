@@ -1,6 +1,3 @@
-__all__ = ("Promise",)
-
-
 # Internal
 import typing as T
 
@@ -70,3 +67,6 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
         """
         self._assert_management()
         return super().lastly(on_resolved)
+
+
+__all__ = ("Promise",)

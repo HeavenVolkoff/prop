@@ -1,15 +1,13 @@
-__all__ = ("ChainPromise", "ChainLinkPromise")
-
 # Internal
 import typing as T
 from abc import ABCMeta, abstractmethod
 from asyncio import FIRST_COMPLETED, CancelledError, wait, shield
 
 # External
-from async_tools.attempt_await import attempt_await
+from async_tools import attempt_await
 
 # Project
-from .abstract import AbstractPromise
+from .abstract import Promise
 
 # Generic types
 K = T.TypeVar("K")
@@ -17,7 +15,7 @@ L = T.TypeVar("L")
 M = T.TypeVar("M")
 
 
-class ChainPromise(AbstractPromise[K]):
+class ChainPromise(Promise[K]):
     """Promise implementation that maintains the callback queue using :class:`~typing.Coroutine`.
 
     See: :class:`~.abstract.promise.Promise` for more information on the Promise abstract interface.
@@ -70,7 +68,7 @@ class ChainLinkPromise(T.Generic[K, L], ChainPromise[K], metaclass=ABCMeta):
     """A special promise implementation used by the chained callback Promises."""
 
     def __init__(
-        self, promise: AbstractPromise[L], callback: T.Callable[..., T.Any], **kwargs: T.Any
+        self, promise: Promise[L], callback: T.Callable[..., T.Any], **kwargs: T.Any
     ) -> None:
         super().__init__(self._wrapper(shield(promise, loop=promise.loop), callback), **kwargs)
 
@@ -114,3 +112,6 @@ class ChainLinkPromise(T.Generic[K, L], ChainPromise[K], metaclass=ABCMeta):
     @abstractmethod
     async def _wrapper(self, promise: T.Awaitable[L], callback: T.Callable[..., T.Any]) -> K:
         raise NotImplementedError
+
+
+__all__ = ("ChainPromise", "ChainLinkPromise")
