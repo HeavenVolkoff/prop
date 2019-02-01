@@ -27,6 +27,7 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         awaitable: T.Optional[T.Union[T.Awaitable[K], T.Coroutine[T.Any, T.Any, K]]] = None,
         *,
         loop: T.Optional[AbstractEventLoop] = None,
+        log_unexpected_exception: bool = True,
         **kwargs: T.Any,
     ) -> None:
         """Promise constructor.
@@ -56,14 +57,29 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             ensure_future(awaitable, loop=self.loop) if awaitable else self.loop.create_future()
         )
         self._notify_chain: T.Optional["Future[None]"] = None
-        self._warning_on_error = self.catch(
-            lambda exc: self.loop.call_exception_handler(
+
+        # Warning if exception is raised inside Promise but it is not waited
+        if log_unexpected_exception:
+            self._fut.add_done_callback(self._warn_on_unexpected_exception)
+
+    def __await__(self) -> T.Generator[T.Any, None, K]:
+        self._fut.remove_done_callback(self._warn_on_unexpected_exception)
+        return self._fut.__await__()
+
+    def _warn_on_unexpected_exception(self, fut: Future):
+        if not fut.done() or fut.cancelled():
+            return
+
+        exc = fut.exception()
+
+        if exc:
+            self.loop.call_exception_handler(
                 {
                     "message": "Unhandled exception propagated through non awaited Promise",
+                    "future": fut,
                     "exception": exc,
                 }
             )
-        )
 
     @property
     def notify_chain(self) -> "Future[None]":
@@ -71,10 +87,6 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             self._notify_chain = self.loop.create_future()
 
         return self._notify_chain
-
-    def __await__(self) -> T.Generator[T.Any, None, K]:
-        self._warning_on_error.cancel()
-        return self._fut.__await__()
 
     def done(self) -> bool:
         """Check if promise is done.

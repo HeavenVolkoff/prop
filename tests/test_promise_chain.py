@@ -1,6 +1,6 @@
 # Internal
 import unittest
-from asyncio import Future, CancelledError, InvalidStateError, sleep
+from asyncio import Future, CancelledError, InvalidStateError, sleep as asleep
 
 # External
 import asynctest
@@ -10,7 +10,7 @@ DEFAULT_SLEEP = 0.05
 
 
 async def sum_with_sleep(x, y):
-    await sleep(DEFAULT_SLEEP)
+    await asleep(DEFAULT_SLEEP)
     return x + y
 
 
@@ -21,8 +21,6 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         self.fut: Future = self.loop.create_future()
         self.exception_ctx = None
 
-        # Reset flag, or some tests will fail
-        Promise._warn_no_management = True
         self.loop.set_exception_handler(lambda l, c: setattr(self, "exception_ctx", c))
 
     def tearDown(self):
@@ -49,11 +47,9 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         self.assertIn("message", self.exception_ctx)
 
     async def test_resolve_disable_management(self):
-        Promise._warn_no_management = False
-
         self.fut.set_result(10)
         result = (
-            await Promise(self.fut)
+            await Promise(self.fut, warn_no_management=False)
             .then(lambda x: x * 2)
             .then(lambda x: x + 2)
             .then(lambda x: x / 2)
@@ -88,6 +84,21 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         self.assertEqual(result, 20)
         self.assertIn("lastly", temp)
         self.assertEqual(temp["lastly"], 100)
+
+    async def test_unexpected_exception(self):
+        async def raise_exc():
+            raise RuntimeError
+
+        task = self.loop.create_task(raise_exc())
+
+        Promise(task)
+
+        with self.assertRaises(RuntimeError):
+            await task
+
+        self.assertIsNotNone(self.exception_ctx)
+        self.assertIn("message", self.exception_ctx)
+        self.assertIsInstance(self.exception_ctx["exception"], RuntimeError)
 
     async def test_resolve_promises_inception(self):
         start_time = self.loop.time()
@@ -319,7 +330,7 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
     async def test_task_cancellation_false(self):
         async def task(_):
             t1.cancel(task=False)
-            await sleep(DEFAULT_SLEEP)
+            await asleep(DEFAULT_SLEEP)
             return 0
 
         with Promise(self.fut) as p:
@@ -330,7 +341,7 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
     async def test_task_cancellation_true(self):
         async def task(_):
             t1.cancel(task=True)
-            await sleep(DEFAULT_SLEEP)
+            await asleep(DEFAULT_SLEEP)
             return 0
 
         with Promise(self.fut) as p:
