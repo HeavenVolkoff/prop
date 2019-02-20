@@ -1,19 +1,17 @@
-__all__ = ("AbstractPromise",)
-
 # Internal
 import typing as T
 from abc import ABCMeta, abstractmethod
 from asyncio import Task, Future, AbstractEventLoop, InvalidStateError, isfuture, ensure_future
 
 # External
-from async_tools.abstract.loopable import Loopable
-from async_tools.abstract.basic_repr import BasicRepr
+from async_tools import Loopable
+from async_tools.abstract import Loopable as AbstractLoopable, BasicRepr
 
 # Generic types
 K = T.TypeVar("K")
 
 
-class AbstractPromise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
+class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
     """An abstract Promise implementation that encapsulate an awaitable.
 
     .. Warning::
@@ -29,6 +27,7 @@ class AbstractPromise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         awaitable: T.Optional[T.Union[T.Awaitable[K], T.Coroutine[T.Any, T.Any, K]]] = None,
         *,
         loop: T.Optional[AbstractEventLoop] = None,
+        log_unexpected_exception: bool = True,
         **kwargs: T.Any,
     ) -> None:
         """Promise constructor.
@@ -41,7 +40,7 @@ class AbstractPromise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         """
         # Retrieve loop from awaitable if available
         if loop is None:
-            if isinstance(awaitable, Loopable):
+            if isinstance(awaitable, AbstractLoopable):
                 loop = awaitable.loop
             elif isfuture(awaitable):
                 try:
@@ -59,15 +58,35 @@ class AbstractPromise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         )
         self._notify_chain: T.Optional["Future[None]"] = None
 
+        # Warning if exception is raised inside Promise but it is not waited
+        if log_unexpected_exception:
+            self._fut.add_done_callback(self._warn_on_unexpected_exception)
+
+    def __await__(self) -> T.Generator[T.Any, None, K]:
+        self._fut.remove_done_callback(self._warn_on_unexpected_exception)
+        return self._fut.__await__()
+
+    def _warn_on_unexpected_exception(self, fut: Future):
+        if not fut.done() or fut.cancelled():
+            return
+
+        exc = fut.exception()
+
+        if exc:
+            self.loop.call_exception_handler(
+                {
+                    "message": "Unhandled exception propagated through non awaited Promise",
+                    "future": fut,
+                    "exception": exc,
+                }
+            )
+
     @property
     def notify_chain(self) -> "Future[None]":
         if self._notify_chain is None:
             self._notify_chain = self.loop.create_future()
 
         return self._notify_chain
-
-    def __await__(self) -> T.Generator[T.Any, None, K]:
-        return self._fut.__await__()
 
     def done(self) -> bool:
         """Check if promise is done.
@@ -140,7 +159,7 @@ class AbstractPromise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         self._fut.set_exception(error)
 
     @abstractmethod
-    def then(self, on_fulfilled: T.Callable[[K], T.Any]) -> "AbstractPromise[T.Any]":
+    def then(self, on_fulfilled: T.Callable[[K], T.Any]) -> "Promise[T.Any]":
         """Chain a callback to be executed when the Promise resolves.
 
         Arguments:
@@ -157,7 +176,7 @@ class AbstractPromise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         raise NotImplemented()
 
     @abstractmethod
-    def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> "AbstractPromise[T.Any]":
+    def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> "Promise[T.Any]":
         """Chain a callback to be executed when the Promise fails to resolve.
 
         Arguments:
@@ -174,7 +193,7 @@ class AbstractPromise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         raise NotImplemented()
 
     @abstractmethod
-    def lastly(self, on_fulfilled: T.Callable[[], T.Any]) -> "AbstractPromise[T.Any]":
+    def lastly(self, on_fulfilled: T.Callable[[], T.Any]) -> "Promise[T.Any]":
         """Chain a callback to be executed when the Promise concludes.
 
         Arguments:
@@ -187,3 +206,6 @@ class AbstractPromise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             Promise that will be resolved when the callback finishes executing.
         """
         raise NotImplemented()
+
+
+__all__ = ("Promise",)

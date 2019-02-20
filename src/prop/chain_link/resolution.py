@@ -5,7 +5,7 @@ import typing as T
 
 # Project
 from ..chain_promise import ChainLinkPromise
-from ..abstract.promise import AbstractPromise
+from ..abstract.promise import Promise
 
 # Generic types
 K = T.TypeVar("K")
@@ -13,7 +13,7 @@ K = T.TypeVar("K")
 
 class ResolutionPromise(ChainLinkPromise[K, K]):
     def __init__(
-        self, promise: AbstractPromise[K], on_resolution: T.Callable[[], T.Any], **kwargs: T.Any
+        self, promise: Promise[K], on_resolution: T.Callable[[], T.Any], **kwargs: T.Any
     ) -> None:
         super().__init__(promise, on_resolution, **kwargs)
 

@@ -6,7 +6,7 @@ from asyncio import CancelledError
 
 # Project
 from ..chain_promise import ChainLinkPromise
-from ..abstract.promise import AbstractPromise
+from ..abstract.promise import Promise
 
 # Generic types
 K = T.TypeVar("K")
@@ -16,7 +16,7 @@ L = T.TypeVar("L")
 class RejectionPromise(ChainLinkPromise[T.Union[K, L], L]):
     def __init__(
         self,
-        promise: AbstractPromise[L],
+        promise: Promise[L],
         on_reject: T.Callable[[Exception], T.Union[K, T.Awaitable[K]]],
         **kwargs: T.Any,
     ) -> None:

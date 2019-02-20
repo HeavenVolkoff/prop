@@ -1,6 +1,3 @@
-__all__ = ("Promise",)
-
-
 # Internal
 import typing as T
 
@@ -13,16 +10,16 @@ L = T.TypeVar("L")
 
 
 class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
-    _warn_no_management = True
-
     def __init__(
         self,
         awaitable: T.Optional[T.Union[T.Awaitable[K], T.Coroutine[T.Any, T.Any, K]]] = None,
+        *,
+        warn_no_management: bool = True,
         **kwargs: T.Any,
     ) -> None:
         super().__init__(awaitable, **kwargs)
 
-        self._is_managed = not self._warn_no_management
+        self._is_managed = not warn_no_management
 
     def __enter__(self) -> "Promise[K]":
         self._is_managed = True
@@ -70,3 +67,6 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
         """
         self._assert_management()
         return super().lastly(on_resolved)
+
+
+__all__ = ("Promise",)
