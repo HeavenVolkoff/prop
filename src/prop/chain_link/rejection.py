@@ -14,18 +14,40 @@ L = T.TypeVar("L")
 
 
 class RejectionPromise(ChainLinkPromise[T.Union[K, L], L]):
+    @T.overload
     def __init__(
         self,
         promise: Promise[L],
-        on_reject: T.Callable[[Exception], T.Union[K, T.Awaitable[K]]],
+        on_reject: T.Callable[[Exception], T.Awaitable[K]],
         **kwargs: T.Any,
+    ) -> None:
+        ...
+
+    @T.overload
+    def __init__(
+        self, promise: Promise[L], on_reject: T.Callable[[Exception], K], **kwargs: T.Any
+    ) -> None:
+        ...
+
+    def __init__(
+        self, promise: Promise[L], on_reject: T.Callable[[Exception], T.Any], **kwargs: T.Any
     ) -> None:
         super().__init__(promise, on_reject, **kwargs)
 
+    @T.overload
     async def _wrapper(
-        self,
-        promise: T.Awaitable[L],
-        on_reject: T.Callable[[Exception], T.Union[K, T.Awaitable[K]]],
+        self, promise: T.Awaitable[L], on_reject: T.Callable[[Exception], T.Awaitable[K]]
+    ) -> T.Union[L, K]:
+        ...
+
+    @T.overload
+    async def _wrapper(
+        self, promise: T.Awaitable[L], on_reject: T.Callable[[Exception], K]
+    ) -> T.Union[L, K]:
+        ...
+
+    async def _wrapper(
+        self, promise: T.Awaitable[L], on_reject: T.Callable[[Exception], T.Any]
     ) -> T.Union[L, K]:
         """Coroutine that wraps a promise and manages a rejection callback.
 

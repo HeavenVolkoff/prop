@@ -13,13 +13,32 @@ L = T.TypeVar("L")
 
 
 class FulfillmentPromise(ChainLinkPromise[K, L]):
+    @T.overload
     def __init__(
-        self,
-        promise: Promise[L],
-        on_fulfilled: T.Callable[[L], T.Union[K, T.Awaitable[K]]],
-        **kwargs: T.Any,
+        self, promise: Promise[L], on_fulfilled: T.Callable[[L], T.Awaitable[K]], **kwargs: T.Any
+    ) -> None:
+        ...
+
+    @T.overload
+    def __init__(
+        self, promise: Promise[L], on_fulfilled: T.Callable[[L], K], **kwargs: T.Any
+    ) -> None:
+        ...
+
+    def __init__(
+        self, promise: Promise[L], on_fulfilled: T.Callable[[L], T.Any], **kwargs: T.Any
     ) -> None:
         super().__init__(promise, on_fulfilled, **kwargs)
+
+    @T.overload
+    async def _wrapper(
+        self, promise: T.Awaitable[L], on_fulfilled: T.Callable[[L], T.Awaitable[K]]
+    ) -> K:
+        ...
+
+    @T.overload
+    async def _wrapper(self, promise: T.Awaitable[L], on_fulfilled: T.Callable[[L], K]) -> K:
+        ...
 
     async def _wrapper(
         self, promise: T.Awaitable[L], on_fulfilled: T.Callable[[L], T.Union[K, T.Awaitable[K]]]

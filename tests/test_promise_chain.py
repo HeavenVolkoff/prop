@@ -1,6 +1,6 @@
 # Internal
 import unittest
-from asyncio import Future, CancelledError, InvalidStateError, sleep as asleep
+from asyncio import Future, CancelledError, sleep as asleep
 
 # External
 import asynctest
@@ -95,6 +95,9 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             await task
+
+        # Wait till next loop cycle
+        await asleep(0)
 
         self.assertIsNotNone(self.exception_ctx)
         self.assertIn("message", self.exception_ctx)
@@ -203,10 +206,10 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         with Promise(self.fut) as p:
             t = p.then(lambda x: x * 2)
 
-            with self.assertRaises(InvalidStateError):
+            with self.assertRaises(RuntimeError):
                 t.resolve(None)
 
-            with self.assertRaises(InvalidStateError):
+            with self.assertRaises(RuntimeError):
                 t.reject(Exception())
 
             p.resolve(10)

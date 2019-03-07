@@ -1,10 +1,11 @@
 # Internal
 import typing as T
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from asyncio import FIRST_COMPLETED, CancelledError, wait, shield
 
 # External
 from async_tools import attempt_await
+from async_tools.abstract import AsyncABCMeta
 
 # Project
 from .abstract import Promise
@@ -21,9 +22,15 @@ class ChainPromise(Promise[K]):
     See: :class:`~.abstract.promise.Promise` for more information on the Promise abstract interface.
     """
 
-    def then(
-        self, on_fulfilled: T.Callable[[K], T.Union[L, T.Awaitable[L]]]
-    ) -> "ChainLinkPromise[L, K]":
+    @T.overload
+    def then(self, on_fulfilled: T.Callable[[K], T.Awaitable[L]]) -> "ChainLinkPromise[L, K]":
+        ...
+
+    @T.overload
+    def then(self, on_fulfilled: T.Callable[[K], L]) -> "ChainLinkPromise[L, K]":
+        ...
+
+    def then(self, on_fulfilled: T.Callable[[K], T.Any]) -> "ChainLinkPromise[T.Any, T.Any]":
         """Concrete implementation that wraps the received callback on a :class:`~typing.Coroutine`.
         The :class:`~typing.Coroutine` will await the promise resolution and,
         if no exception is raised, it will call the callback with the promise
@@ -36,9 +43,17 @@ class ChainPromise(Promise[K]):
 
         return FulfillmentPromise(self, on_fulfilled, loop=self._loop)
 
+    @T.overload
     def catch(
-        self, on_reject: T.Callable[[Exception], T.Union[L, T.Awaitable[L]]]
+        self, on_reject: T.Callable[[Exception], T.Awaitable[L]]
     ) -> "ChainLinkPromise[T.Union[L, K], K]":
+        ...
+
+    @T.overload
+    def catch(self, on_reject: T.Callable[[Exception], L]) -> "ChainLinkPromise[T.Union[L, K], K]":
+        ...
+
+    def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> "ChainLinkPromise[T.Any, T.Any]":
         """Concrete implementation that wraps the received callback on a :class:`~typing.Coroutine`.
         The :class:`~typing.Coroutine` will await the promise resolution and,
         if a exception is raised, it will call the callback with the promise
@@ -64,7 +79,7 @@ class ChainPromise(Promise[K]):
         return ResolutionPromise(self, on_resolved, loop=self._loop)
 
 
-class ChainLinkPromise(T.Generic[K, L], ChainPromise[K], metaclass=ABCMeta):
+class ChainLinkPromise(T.Generic[K, L], ChainPromise[K], metaclass=AsyncABCMeta):
     """A special promise implementation used by the chained callback Promises."""
 
     def __init__(
@@ -76,8 +91,16 @@ class ChainLinkPromise(T.Generic[K, L], ChainPromise[K], metaclass=ABCMeta):
         self._parent_notify_chain = promise.notify_chain
         self._waiting_chain_result = True  # Flag for controlling cancellation
 
-    async def _ensure_chain(self, result: T.Union[M, T.Awaitable[M]]) -> M:
-        task = self.loop.create_task(attempt_await(result, loop=self.loop))
+    @T.overload
+    async def _ensure_chain(self, result: T.Awaitable[M]) -> M:
+        ...
+
+    @T.overload
+    async def _ensure_chain(self, result: M) -> M:
+        ...
+
+    async def _ensure_chain(self, result: T.Any) -> T.Any:
+        task = self.loop.create_task(attempt_await(result, self.loop))
 
         try:
             await wait((task, self._parent_notify_chain), return_when=FIRST_COMPLETED)

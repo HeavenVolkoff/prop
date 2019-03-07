@@ -1,7 +1,7 @@
 # Internal
 import typing as T
 from abc import ABCMeta, abstractmethod
-from asyncio import Task, Future, AbstractEventLoop, InvalidStateError, isfuture, ensure_future
+from asyncio import Future, Handle, AbstractEventLoop, isfuture, ensure_future
 
 # External
 from async_tools import Loopable
@@ -9,6 +9,8 @@ from async_tools.abstract import Loopable as AbstractLoopable, BasicRepr
 
 # Generic types
 K = T.TypeVar("K")
+
+_AWAITED = object()  # sentinel object to detect when a Promise was awaited
 
 
 class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
@@ -22,9 +24,37 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
 
     __slots__ = ("_fut",)
 
+    @T.overload
     def __init__(
         self,
-        awaitable: T.Optional[T.Union[T.Awaitable[K], T.Coroutine[T.Any, T.Any, K]]] = None,
+        awaitable: None,
+        *,
+        loop: T.Optional[AbstractEventLoop] = None,
+        log_unexpected_exception: bool = True,
+        **kwargs: T.Any,
+    ) -> None:
+        ...
+
+    @T.overload
+    def __init__(
+        self,
+        awaitable: T.Awaitable[K],
+        *,
+        loop: T.Optional[AbstractEventLoop] = None,
+        log_unexpected_exception: bool = True,
+        **kwargs: T.Any,
+    ) -> None:
+        ...
+
+    @T.overload
+    def __init__(
+        self, awaitable: "Future[K]", *, log_unexpected_exception: bool = True, **kwargs: T.Any
+    ) -> None:
+        ...
+
+    def __init__(
+        self,
+        awaitable: T.Any = None,
         *,
         loop: T.Optional[AbstractEventLoop] = None,
         log_unexpected_exception: bool = True,
@@ -38,17 +68,16 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             kwargs: Keyword parameters for super.
 
         """
-        # Retrieve loop from awaitable if available
         if loop is None:
+            # Retrieve loop from awaitable if available
             if isinstance(awaitable, AbstractLoopable):
                 loop = awaitable.loop
             elif isfuture(awaitable):
-                try:
-                    get_loop = awaitable.get_loop  # type: ignore
-                except AttributeError:  # Python <= 3.7
-                    loop = getattr(awaitable, "_loop", None)
-                else:
-                    loop = get_loop()
+                loop = (
+                    awaitable.get_loop()
+                    if hasattr(awaitable, "get_loop")
+                    else getattr(awaitable, "_loop", None)  # Python < 3.7
+                )
 
         super().__init__(loop=loop, **kwargs)
 
@@ -57,28 +86,49 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             ensure_future(awaitable, loop=self.loop) if awaitable else self.loop.create_future()
         )
         self._notify_chain: T.Optional["Future[None]"] = None
+        self._unexpected_exception_warning: T.Optional[object] = None
 
-        # Warning if exception is raised inside Promise but it is not waited
         if log_unexpected_exception:
+            # Warn if exception is raised inside a not awaited Promise
             self._fut.add_done_callback(self._warn_on_unexpected_exception)
+        else:
+            # Promise was explicitly set to no warn on error, se we assume it's already awaited
+            self._unexpected_exception_warning = _AWAITED
 
     def __await__(self) -> T.Generator[T.Any, None, K]:
-        self._fut.remove_done_callback(self._warn_on_unexpected_exception)
+        if self._unexpected_exception_warning is not _AWAITED:
+            # First time awaiting this promise, cancel warning
+            if isinstance(self._unexpected_exception_warning, Handle):
+                # Internal future was already resolved, cancel warning directly
+                self._unexpected_exception_warning.cancel()
+            else:
+                # Internal future is still pending, remove warning callback
+                self._fut.remove_done_callback(self._warn_on_unexpected_exception)
+
+            # Set this promised as awaited
+            self._unexpected_exception_warning = _AWAITED
+
         return self._fut.__await__()
 
-    def _warn_on_unexpected_exception(self, fut: Future):
-        if not fut.done() or fut.cancelled():
+    __iter__ = __await__  # make compatible with 'yield from'.
+
+    def _warn_on_unexpected_exception(self, fut: "Future[K]") -> None:
+        assert fut is self._fut and fut.done()
+
+        if self._unexpected_exception_warning is _AWAITED or fut.cancelled():
             return
 
         exc = fut.exception()
 
         if exc:
-            self.loop.call_exception_handler(
+            assert self._unexpected_exception_warning is None
+            self._unexpected_exception_warning = self.loop.call_soon(
+                self.loop.call_exception_handler,
                 {
-                    "message": "Unhandled exception propagated through non awaited Promise",
                     "future": fut,
+                    "message": "Unhandled exception propagated through non awaited Promise",
                     "exception": exc,
-                }
+                },
             )
 
     @property
@@ -132,12 +182,6 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             InvalidStateError: Raised when promise was already resolved
 
         """
-        if isinstance(self._fut, Task):
-            raise InvalidStateError(
-                "Promises that are derived from Tasks or part"
-                "of a chain can't be resolved externally"
-            )
-
         self._fut.set_result(result)
 
     def reject(self, error: Exception) -> None:
@@ -150,12 +194,6 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             InvalidStateError: Raised when promise was already resolved
 
         """
-        if isinstance(self._fut, Task):
-            raise InvalidStateError(
-                "Promises that are derived from Tasks or part"
-                "of a chain can't be rejected externally"
-            )
-
         self._fut.set_exception(error)
 
     @abstractmethod

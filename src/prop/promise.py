@@ -12,7 +12,7 @@ L = T.TypeVar("L")
 class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
     def __init__(
         self,
-        awaitable: T.Optional[T.Union[T.Awaitable[K], T.Coroutine[T.Any, T.Any, K]]] = None,
+        awaitable: T.Optional[T.Awaitable[K]] = None,
         *,
         warn_no_management: bool = True,
         **kwargs: T.Any,
@@ -37,9 +37,15 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
             {"message": f"{self} is being chained without proper life-cycle management."}
         )
 
-    def then(
-        self, on_fulfilled: T.Callable[[K], T.Union[L, T.Awaitable[L]]]
-    ) -> ChainLinkPromise[L, K]:
+    @T.overload
+    def then(self, on_fulfilled: T.Callable[[K], T.Awaitable[L]]) -> ChainLinkPromise[L, K]:
+        ...
+
+    @T.overload
+    def then(self, on_fulfilled: T.Callable[[K], L]) -> ChainLinkPromise[L, K]:
+        ...
+
+    def then(self, on_fulfilled: T.Callable[[K], T.Any]) -> ChainLinkPromise[T.Any, T.Any]:
         """Add management control to then
 
         See: :meth:`~.promise.Promise.then` for more information.
@@ -48,9 +54,17 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
         self._assert_management()
         return super().then(on_fulfilled)
 
+    @T.overload
     def catch(
-        self, on_reject: T.Callable[[Exception], T.Union[L, T.Awaitable[L]]]
+        self, on_reject: T.Callable[[Exception], T.Awaitable[L]]
     ) -> ChainLinkPromise[T.Union[L, K], K]:
+        ...
+
+    @T.overload
+    def catch(self, on_reject: T.Callable[[Exception], L]) -> ChainLinkPromise[T.Union[L, K], K]:
+        ...
+
+    def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> ChainLinkPromise[T.Any, T.Any]:
         """Add management control to catch
 
         See: :meth:`~.promise.Promise.catch` for more information.
