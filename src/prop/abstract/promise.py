@@ -1,7 +1,8 @@
 # Internal
+import sys
 import typing as T
 from abc import ABCMeta, abstractmethod
-from asyncio import Future, Handle, AbstractEventLoop, isfuture, ensure_future
+from asyncio import Task, Future, Handle, AbstractEventLoop, isfuture, ensure_future
 
 # External
 from async_tools import Loopable
@@ -182,6 +183,10 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             InvalidStateError: Raised when promise was already resolved
 
         """
+        if sys.version_info < (3, 7) and isinstance(self._fut, Task):
+            # This is needs to exist because it's incorrectly allowed on Python <= 3.6
+            raise RuntimeError("Task does not support set_result operation")
+
         self._fut.set_result(result)
 
     def reject(self, error: Exception) -> None:
@@ -194,6 +199,10 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             InvalidStateError: Raised when promise was already resolved
 
         """
+        if sys.version_info < (3, 7) and isinstance(self._fut, Task):
+            # This is needs to exist because it's incorrectly allowed on Python < 3.7
+            raise RuntimeError("Task does not support set_exception operation")
+
         self._fut.set_exception(error)
 
     @abstractmethod
