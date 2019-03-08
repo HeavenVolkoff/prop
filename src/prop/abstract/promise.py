@@ -34,7 +34,7 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         log_unexpected_exception: bool = True,
         **kwargs: T.Any,
     ) -> None:
-        ...
+        ...  # pragma: no cover
 
     @T.overload
     def __init__(
@@ -45,13 +45,13 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         log_unexpected_exception: bool = True,
         **kwargs: T.Any,
     ) -> None:
-        ...
+        ...  # pragma: no cover
 
     @T.overload
     def __init__(
         self, awaitable: "Future[K]", *, log_unexpected_exception: bool = True, **kwargs: T.Any
     ) -> None:
-        ...
+        ...  # pragma: no cover
 
     def __init__(
         self,

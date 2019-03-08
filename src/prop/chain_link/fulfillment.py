@@ -17,13 +17,13 @@ class FulfillmentPromise(ChainLinkPromise[K, L]):
     def __init__(
         self, promise: Promise[L], on_fulfilled: T.Callable[[L], T.Awaitable[K]], **kwargs: T.Any
     ) -> None:
-        ...
+        ...  # pragma: no cover
 
     @T.overload
     def __init__(
         self, promise: Promise[L], on_fulfilled: T.Callable[[L], K], **kwargs: T.Any
     ) -> None:
-        ...
+        ...  # pragma: no cover
 
     def __init__(
         self, promise: Promise[L], on_fulfilled: T.Callable[[L], T.Any], **kwargs: T.Any
@@ -34,11 +34,11 @@ class FulfillmentPromise(ChainLinkPromise[K, L]):
     async def _wrapper(
         self, promise: T.Awaitable[L], on_fulfilled: T.Callable[[L], T.Awaitable[K]]
     ) -> K:
-        ...
+        ...  # pragma: no cover
 
     @T.overload
     async def _wrapper(self, promise: T.Awaitable[L], on_fulfilled: T.Callable[[L], K]) -> K:
-        ...
+        ...  # pragma: no cover
 
     async def _wrapper(
         self, promise: T.Awaitable[L], on_fulfilled: T.Callable[[L], T.Union[K, T.Awaitable[K]]]
