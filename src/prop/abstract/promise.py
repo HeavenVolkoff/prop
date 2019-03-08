@@ -214,13 +214,13 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
                 is the result of the Promise.
 
         Raises:
-            NotImplemented
+            NotImplementedError
 
         Returns:
             Promise that will be resolved when the callback finishes executing.
 
         """
-        raise NotImplemented()
+        raise NotImplementedError
 
     @abstractmethod
     def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> "Promise[T.Any]":
@@ -231,13 +231,13 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
                 is the reason of the Promise resolution failure.
 
         Raises:
-            NotImplemented
+            NotImplementedError
 
         Returns:
             Promise that will be resolved when the callback finishes executing.
 
         """
-        raise NotImplemented()
+        raise NotImplementedError
 
     @abstractmethod
     def lastly(self, on_fulfilled: T.Callable[[], T.Any]) -> "Promise[T.Any]":
@@ -247,12 +247,12 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             on_fulfilled: The callback. No argument is passed to it.
 
         Raises:
-            NotImplemented
+            NotImplementedError
 
         Returns:
             Promise that will be resolved when the callback finishes executing.
         """
-        raise NotImplemented()
+        raise NotImplementedError
 
 
 __all__ = ("Promise",)
