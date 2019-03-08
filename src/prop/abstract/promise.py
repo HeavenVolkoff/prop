@@ -1,11 +1,11 @@
 # Internal
 import typing as T
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from asyncio import Future, Handle, AbstractEventLoop, isfuture, ensure_future
 
 # External
 from async_tools import Loopable
-from async_tools.abstract import Loopable as AbstractLoopable, BasicRepr, AsyncABCMeta
+from async_tools.abstract import Loopable as AbstractLoopable, BasicRepr
 
 # Generic types
 K = T.TypeVar("K")
@@ -13,7 +13,7 @@ K = T.TypeVar("K")
 _AWAITED = object()  # sentinel object to detect when a Promise was awaited
 
 
-class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=AsyncABCMeta):
+class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
     """An abstract Promise implementation that encapsulate an awaitable.
 
     .. Warning::

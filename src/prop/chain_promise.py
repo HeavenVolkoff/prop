@@ -5,6 +5,7 @@ from asyncio import FIRST_COMPLETED, CancelledError, wait, shield
 
 # External
 from async_tools import attempt_await
+from async_tools.abstract import AsyncABCMeta
 
 # Project
 from .abstract import Promise
@@ -78,7 +79,7 @@ class ChainPromise(Promise[K]):
         return ResolutionPromise(self, on_resolved, loop=self._loop)
 
 
-class ChainLinkPromise(T.Generic[K, L], ChainPromise[K]):
+class ChainLinkPromise(T.Generic[K, L], ChainPromise[K], metaclass=AsyncABCMeta):
     """A special promise implementation used by the chained callback Promises."""
 
     def __init__(
