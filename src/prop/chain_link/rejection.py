@@ -20,14 +20,14 @@ class RejectionPromise(ChainLinkPromise[T.Union[K, L], L]):
         promise: Promise[L],
         on_reject: T.Callable[[Exception], T.Awaitable[K]],
         **kwargs: T.Any,
-    ) -> None:
-        ...  # pragma: no cover
+    ) -> None:  # pragma: no cover
+        ...
 
     @T.overload
     def __init__(
         self, promise: Promise[L], on_reject: T.Callable[[Exception], K], **kwargs: T.Any
-    ) -> None:
-        ...  # pragma: no cover
+    ) -> None:  # pragma: no cover
+        ...
 
     def __init__(
         self, promise: Promise[L], on_reject: T.Callable[[Exception], T.Any], **kwargs: T.Any
@@ -37,14 +37,14 @@ class RejectionPromise(ChainLinkPromise[T.Union[K, L], L]):
     @T.overload
     async def _wrapper(
         self, promise: T.Awaitable[L], on_reject: T.Callable[[Exception], T.Awaitable[K]]
-    ) -> T.Union[L, K]:
-        ...  # pragma: no cover
+    ) -> T.Union[L, K]:  # pragma: no cover
+        ...
 
     @T.overload
     async def _wrapper(
         self, promise: T.Awaitable[L], on_reject: T.Callable[[Exception], K]
-    ) -> T.Union[L, K]:
-        ...  # pragma: no cover
+    ) -> T.Union[L, K]:  # pragma: no cover
+        ...
 
     async def _wrapper(
         self, promise: T.Awaitable[L], on_reject: T.Callable[[Exception], T.Any]

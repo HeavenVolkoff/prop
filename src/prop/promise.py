@@ -38,12 +38,14 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
         )
 
     @T.overload
-    def then(self, on_fulfilled: T.Callable[[K], T.Awaitable[L]]) -> ChainLinkPromise[L, K]:
-        ...  # pragma: no cover
+    def then(
+        self, on_fulfilled: T.Callable[[K], T.Awaitable[L]]
+    ) -> ChainLinkPromise[L, K]:  # pragma: no cover
+        ...
 
     @T.overload
-    def then(self, on_fulfilled: T.Callable[[K], L]) -> ChainLinkPromise[L, K]:
-        ...  # pragma: no cover
+    def then(self, on_fulfilled: T.Callable[[K], L]) -> ChainLinkPromise[L, K]:  # pragma: no cover
+        ...
 
     def then(self, on_fulfilled: T.Callable[[K], T.Any]) -> ChainLinkPromise[T.Any, T.Any]:
         """Add management control to then
@@ -57,12 +59,14 @@ class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
     @T.overload
     def catch(
         self, on_reject: T.Callable[[Exception], T.Awaitable[L]]
-    ) -> ChainLinkPromise[T.Union[L, K], K]:
-        ...  # pragma: no cover
+    ) -> ChainLinkPromise[T.Union[L, K], K]:  # pragma: no cover
+        ...
 
     @T.overload
-    def catch(self, on_reject: T.Callable[[Exception], L]) -> ChainLinkPromise[T.Union[L, K], K]:
-        ...  # pragma: no cover
+    def catch(
+        self, on_reject: T.Callable[[Exception], L]
+    ) -> ChainLinkPromise[T.Union[L, K], K]:  # pragma: no cover
+        ...
 
     def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> ChainLinkPromise[T.Any, T.Any]:
         """Add management control to catch
