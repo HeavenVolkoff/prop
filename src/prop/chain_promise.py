@@ -1,7 +1,7 @@
 # Internal
 import typing as T
 from abc import abstractmethod
-from asyncio import FIRST_COMPLETED, CancelledError, wait, shield
+from asyncio import FIRST_COMPLETED, CancelledError, wait, shield, Future
 
 # External
 from async_tools import attempt_await
@@ -16,25 +16,41 @@ L = T.TypeVar("L")
 M = T.TypeVar("M")
 
 
-class ChainPromise(Promise[K]):
+class ChainPromise(T.Generic[K, L], Promise[K], metaclass=AsyncABCMeta):
     """Promise implementation that maintains the callback queue using :class:`~typing.Coroutine`.
 
     See: :class:`~.abstract.promise.Promise` for more information on the Promise abstract interface.
     """
 
+    def __init__(
+        self, promise: Promise[L], callback: T.Callable[..., T.Any], **kwargs: T.Any
+    ) -> None:
+        if promise.cancelled():
+            raise CancelledError("Promise is already cancelled")
+
+        # Ensure correct chain behaviour
+        promise.__chain__(self._ensure_chain)
+
+        # Shield promise to allow mid-chain cancellation without causing side-effects for previous links
+        super().__init__(self._wrapper(shield(promise, loop=promise.loop), callback), **kwargs)
+
+    def _ensure_chain(self, chain: "Future[T.Any]") -> T.Any:
+        if chain.cancelled():
+            self.cancel()
+
+    @abstractmethod
+    async def _wrapper(self, promise: T.Awaitable[L], callback: T.Callable[..., T.Any]) -> K:
+        raise NotImplementedError
+
     @T.overload
-    def then(
-        self, on_fulfilled: T.Callable[[K], T.Awaitable[L]]
-    ) -> "ChainLinkPromise[L, K]":  # pragma: no cover
+    def then(self, on_fulfilled: T.Callable[[K], T.Awaitable[L]]) -> "ChainPromise[L, K]":
         ...
 
     @T.overload
-    def then(
-        self, on_fulfilled: T.Callable[[K], L]
-    ) -> "ChainLinkPromise[L, K]":  # pragma: no cover
+    def then(self, on_fulfilled: T.Callable[[K], L]) -> "ChainPromise[L, K]":
         ...
 
-    def then(self, on_fulfilled: T.Callable[[K], T.Any]) -> "ChainLinkPromise[T.Any, T.Any]":
+    def then(self, on_fulfilled: T.Callable[[K], T.Any]) -> "ChainPromise[T.Any, K]":
         """Concrete implementation that wraps the received callback on a :class:`~typing.Coroutine`.
         The :class:`~typing.Coroutine` will await the promise resolution and,
         if no exception is raised, it will call the callback with the promise
@@ -50,16 +66,14 @@ class ChainPromise(Promise[K]):
     @T.overload
     def catch(
         self, on_reject: T.Callable[[Exception], T.Awaitable[L]]
-    ) -> "ChainLinkPromise[T.Union[L, K], K]":  # pragma: no cover
+    ) -> "ChainPromise[T.Union[L, K], K]":
         ...
 
     @T.overload
-    def catch(
-        self, on_reject: T.Callable[[Exception], L]
-    ) -> "ChainLinkPromise[T.Union[L, K], K]":  # pragma: no cover
+    def catch(self, on_reject: T.Callable[[Exception], L]) -> "ChainPromise[T.Union[L, K], K]":
         ...
 
-    def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> "ChainLinkPromise[T.Any, T.Any]":
+    def catch(self, on_reject: T.Callable[[Exception], T.Any]) -> "ChainPromise[T.Any, K]":
         """Concrete implementation that wraps the received callback on a :class:`~typing.Coroutine`.
         The :class:`~typing.Coroutine` will await the promise resolution and,
         if a exception is raised, it will call the callback with the promise
@@ -72,7 +86,7 @@ class ChainPromise(Promise[K]):
 
         return RejectionPromise(self, on_reject, loop=self._loop)
 
-    def lastly(self, on_resolved: T.Callable[[], T.Any]) -> "ChainLinkPromise[K, K]":
+    def lastly(self, on_resolved: T.Callable[[], T.Any]) -> "ChainPromise[K, K]":
         """Concrete implementation that wraps the received callback on a :class:`~typing.Coroutine`.
         The :class:`~typing.Coroutine` will await the promise resolution and
         call the callback.
@@ -85,62 +99,4 @@ class ChainPromise(Promise[K]):
         return ResolutionPromise(self, on_resolved, loop=self._loop)
 
 
-class ChainLinkPromise(T.Generic[K, L], ChainPromise[K], metaclass=AsyncABCMeta):
-    """A special promise implementation used by the chained callback Promises."""
-
-    def __init__(
-        self, promise: Promise[L], callback: T.Callable[..., T.Any], **kwargs: T.Any
-    ) -> None:
-        super().__init__(self._wrapper(shield(promise, loop=promise.loop), callback), **kwargs)
-
-        # Internal
-        self._parent_notify_chain = promise.notify_chain
-        self._waiting_chain_result = True  # Flag for controlling cancellation
-
-    @T.overload
-    async def _ensure_chain(self, result: T.Awaitable[M]) -> M:  # pragma: no cover
-        ...
-
-    @T.overload
-    async def _ensure_chain(self, result: M) -> M:  # pragma: no cover
-        ...
-
-    async def _ensure_chain(self, result: T.Any) -> T.Any:
-        task = self.loop.create_task(attempt_await(result, self.loop))
-
-        try:
-            await wait((task, self._parent_notify_chain), return_when=FIRST_COMPLETED)
-        except CancelledError:
-            # Edge case when cancellation is raised during wait call.
-            # Ignore it because wait don't propagate CancelledError to it's
-            # future, and we take care of everything down below
-            pass
-
-        if task.done():
-            if self._parent_notify_chain.cancelled():
-                # Rearm chain cancellation in the case the result was received
-                # but the chain was cancelled instants later.
-                # Common case when task is synchronous
-                self.notify_chain.cancel()
-            else:
-                # Solve edge case where a link is added to the chain after it
-                # was over. Without this notify_chain wouldn't listen the
-                # parent's request for chain cancellation
-                self._parent_notify_chain.add_done_callback(lambda _: self.notify_chain.cancel())
-        else:
-            task.cancel()
-
-        return await task
-
-    def cancel(self, *, task: bool = True, chain: bool = False) -> bool:
-        if self._waiting_chain_result or task:
-            return super().cancel(chain=chain)
-
-        return False
-
-    @abstractmethod
-    async def _wrapper(self, promise: T.Awaitable[L], callback: T.Callable[..., T.Any]) -> K:
-        raise NotImplementedError
-
-
-__all__ = ("ChainPromise", "ChainLinkPromise")
+__all__ = ("ChainPromise",)

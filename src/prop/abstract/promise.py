@@ -5,16 +5,25 @@ from abc import ABCMeta, abstractmethod
 from asyncio import Task, Future, Handle, AbstractEventLoop, isfuture, ensure_future
 
 # External
+from enum import auto, IntEnum, unique
+from functools import partial
+
+import typing_extensions as Te
 from async_tools import Loopable
 from async_tools.abstract import Loopable as AbstractLoopable, BasicRepr
 
 # Generic types
 K = T.TypeVar("K")
 
-_AWAITED = object()  # sentinel object to detect when a Promise was awaited
+
+@unique
+class ChainTypes(IntEnum):
+    REJECTION = auto()
+    RESOLUTION = auto()
+    FULFILLMENT = auto()
 
 
-class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
+class Promise(Loopable, T.Awaitable[K], metaclass=ABCMeta):
     """An abstract Promise implementation that encapsulate an awaitable.
 
     .. Warning::
@@ -23,39 +32,9 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         how the callback chain is generated or maintained.
     """
 
-    __slots__ = ("_fut",)
-
-    @T.overload
     def __init__(
         self,
-        awaitable: None,
-        *,
-        loop: T.Optional[AbstractEventLoop] = None,
-        log_unexpected_exception: bool = True,
-        **kwargs: T.Any,
-    ) -> None:  # pragma: no cover
-        ...
-
-    @T.overload
-    def __init__(
-        self,
-        awaitable: T.Awaitable[K],
-        *,
-        loop: T.Optional[AbstractEventLoop] = None,
-        log_unexpected_exception: bool = True,
-        **kwargs: T.Any,
-    ) -> None:  # pragma: no cover
-        ...
-
-    @T.overload
-    def __init__(
-        self, awaitable: "Future[K]", *, log_unexpected_exception: bool = True, **kwargs: T.Any
-    ) -> None:  # pragma: no cover
-        ...
-
-    def __init__(
-        self,
-        awaitable: T.Any = None,
+        awaitable: T.Optional[T.Awaitable[K]] = None,
         *,
         loop: T.Optional[AbstractEventLoop] = None,
         log_unexpected_exception: bool = True,
@@ -66,6 +45,8 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         Arguments:
             awaitable: The awaitable object to be encapsulated.
             loop: Current asyncio loop.
+            log_unexpected_exception: Flag for controlling whether errors raised
+                in not awaited promises should be logged.
             kwargs: Keyword parameters for super.
 
         """
@@ -73,57 +54,59 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             # Retrieve loop from awaitable if available
             if isinstance(awaitable, AbstractLoopable):
                 loop = awaitable.loop
+            elif isinstance(awaitable, Future) and callable(getattr(awaitable, "get_loop", None)):
+                # asyncio's Future, in Python >= 3.7, gracefully exposes it's loop
+                loop = awaitable.get_loop()
             elif isfuture(awaitable):
-                loop = (
-                    awaitable.get_loop()
-                    if hasattr(awaitable, "get_loop")
-                    else getattr(awaitable, "_loop", None)  # Python < 3.7
-                )
+                loop = getattr(awaitable, "_loop", None)
 
         super().__init__(loop=loop, **kwargs)
 
-        # Internal
-        self._fut: Future[K] = (
+        fut: "Future[K]" = (
             ensure_future(awaitable, loop=self.loop) if awaitable else self.loop.create_future()
         )
-        self._notify_chain: T.Optional["Future[None]"] = None
-        self._unexpected_exception_warning: T.Optional[object] = None
 
-        if log_unexpected_exception:
-            # Warn if exception is raised inside a not awaited Promise
-            self._fut.add_done_callback(self._warn_on_unexpected_exception)
-        else:
-            # Promise was explicitly set to no warn on error, se we assume it's already awaited
-            self._unexpected_exception_warning = _AWAITED
+        fut.add_done_callback(self._schedule_callbacks)
+
+        # Internal
+        self._chain: Te.Deque[T.Tuple[T.Callable[[T.Any], T.Any], Promise[T.Any], ChainTypes]] = self.loop.create_future()
+        self._awaited = False
+
+        # Ensure that the chain also is cancelled if internal future is cancelled
 
     def __await__(self) -> T.Generator[T.Any, None, K]:
-        if self._unexpected_exception_warning is not _AWAITED:
-            # First time awaiting this promise, cancel warning
-            if isinstance(self._unexpected_exception_warning, Handle):
-                # Internal future was already resolved, cancel warning directly
-                self._unexpected_exception_warning.cancel()
-            else:
-                # Internal future is still pending, remove warning callback
-                self._fut.remove_done_callback(self._warn_on_unexpected_exception)
+        """Python magic method called when awaiting an asynchronous object.
 
-            # Set this promised as awaited
-            self._unexpected_exception_warning = _AWAITED
+        Indirectly invoked by:
+        >>> p = Promise()
+        >>> await p # Internally python will call p.__await__
 
+        Returns:
+            A generator used internally by the async loop to manage the an awaitable life-cycle.
+            A Promise redirects to it's internal future __await__().
+        """
+        self._awaited = True
         return self._fut.__await__()
 
-    __iter__ = __await__  # make compatible with 'yield from'.
+    # make Promise compatible with 'yield from'.
+    __iter__ = __await__
+
+    def _schedule_callbacks(self, fut: "Future[K]"):
+        assert fut is self._fut and fut.done
+
+        if
 
     def _warn_on_unexpected_exception(self, fut: "Future[K]") -> None:
         assert fut is self._fut and fut.done()
 
-        if self._unexpected_exception_warning is _AWAITED or fut.cancelled():
+        if self._awaited or fut.cancelled():
             return
 
         exc = fut.exception()
-
         if exc:
-            assert self._unexpected_exception_warning is None
-            self._unexpected_exception_warning = self.loop.call_soon(
+            assert self._exception_handler is None
+            # Queue call_exception_handler execution to allow slightly delayed promise await to cancel it
+            self._exception_handler = self.loop.call_soon(
                 self.loop.call_exception_handler,
                 {
                     "future": fut,
@@ -131,13 +114,6 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
                     "exception": exc,
                 },
             )
-
-    @property
-    def notify_chain(self) -> "Future[None]":
-        if self._notify_chain is None:
-            self._notify_chain = self.loop.create_future()
-
-        return self._notify_chain
 
     def done(self) -> bool:
         """Check if promise is done.
@@ -148,21 +124,18 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
         """
         return self._fut.done()
 
-    def cancel(self, *, chain: bool = False) -> bool:
+    def cancel(self, *, chain: bool = True) -> bool:
         """Cancel the promise and chain.
 
         Returns:
             Boolean indicating if the cancellation occurred or not.
 
         """
-        if self._fut.cancel():
-            return True
+        result = False
+        if chain and self._chain:
+            result = self._chain.cancel()
 
-        if chain and self._notify_chain:
-            self._notify_chain.cancel()
-            return True
-
-        return False
+        return self._fut.cancel() or result
 
     def cancelled(self) -> bool:
         """Indicates whether promise is cancelled or not.
@@ -171,7 +144,7 @@ class Promise(BasicRepr, Loopable, T.Awaitable[K], metaclass=ABCMeta):
             Boolean indicating if promise is cancelled or not.
 
         """
-        return self._fut.cancelled()
+        return self._fut.cancelled() or self._chain.cancelled()
 
     def resolve(self, result: K) -> None:
         """Resolve Promise with given value.

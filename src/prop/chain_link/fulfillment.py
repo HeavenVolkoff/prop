@@ -1,11 +1,12 @@
-__all__ = ("FulfillmentPromise",)
-
 # Internal
 import typing as T
 
 # Project
 from ..chain_promise import ChainLinkPromise
 from ..abstract.promise import Promise
+
+__all__ = ("FulfillmentPromise",)
+
 
 # Generic types
 K = T.TypeVar("K")
@@ -16,30 +17,31 @@ class FulfillmentPromise(ChainLinkPromise[K, L]):
     @T.overload
     def __init__(
         self, promise: Promise[L], on_fulfilled: T.Callable[[L], T.Awaitable[K]], **kwargs: T.Any
-    ) -> None:  # pragma: no cover
+    ) -> None:
         ...
 
     @T.overload
     def __init__(
         self, promise: Promise[L], on_fulfilled: T.Callable[[L], K], **kwargs: T.Any
-    ) -> None:  # pragma: no cover
+    ) -> None:
         ...
 
     def __init__(
-        self, promise: Promise[L], on_fulfilled: T.Callable[[L], T.Any], **kwargs: T.Any
+        self,
+        promise: Promise[L],
+        on_fulfilled: T.Callable[[L], T.Union[T.Awaitable[K], K]],
+        **kwargs: T.Any,
     ) -> None:
         super().__init__(promise, on_fulfilled, **kwargs)
 
     @T.overload
     async def _wrapper(
         self, promise: T.Awaitable[L], on_fulfilled: T.Callable[[L], T.Awaitable[K]]
-    ) -> K:  # pragma: no cover
+    ) -> K:
         ...
 
     @T.overload
-    async def _wrapper(
-        self, promise: T.Awaitable[L], on_fulfilled: T.Callable[[L], K]
-    ) -> K:  # pragma: no cover
+    async def _wrapper(self, promise: T.Awaitable[L], on_fulfilled: T.Callable[[L], K]) -> K:
         ...
 
     async def _wrapper(

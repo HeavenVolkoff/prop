@@ -1,5 +1,3 @@
-__all__ = ("RejectionPromise",)
-
 # Internal
 import typing as T
 from asyncio import CancelledError
@@ -7,6 +5,9 @@ from asyncio import CancelledError
 # Project
 from ..chain_promise import ChainLinkPromise
 from ..abstract.promise import Promise
+
+__all__ = ("RejectionPromise",)
+
 
 # Generic types
 K = T.TypeVar("K")
@@ -20,13 +21,13 @@ class RejectionPromise(ChainLinkPromise[T.Union[K, L], L]):
         promise: Promise[L],
         on_reject: T.Callable[[Exception], T.Awaitable[K]],
         **kwargs: T.Any,
-    ) -> None:  # pragma: no cover
+    ) -> None:
         ...
 
     @T.overload
     def __init__(
         self, promise: Promise[L], on_reject: T.Callable[[Exception], K], **kwargs: T.Any
-    ) -> None:  # pragma: no cover
+    ) -> None:
         ...
 
     def __init__(
@@ -37,13 +38,13 @@ class RejectionPromise(ChainLinkPromise[T.Union[K, L], L]):
     @T.overload
     async def _wrapper(
         self, promise: T.Awaitable[L], on_reject: T.Callable[[Exception], T.Awaitable[K]]
-    ) -> T.Union[L, K]:  # pragma: no cover
+    ) -> T.Union[L, K]:
         ...
 
     @T.overload
     async def _wrapper(
         self, promise: T.Awaitable[L], on_reject: T.Callable[[Exception], K]
-    ) -> T.Union[L, K]:  # pragma: no cover
+    ) -> T.Union[L, K]:
         ...
 
     async def _wrapper(
