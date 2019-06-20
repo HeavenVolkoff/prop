@@ -1,11 +1,8 @@
-"""Asynchronous Reactive eXtensions."""
-
 # External
 from importlib_metadata import version
 
 # Project
 from .promise import Promise
-from .chain_promise import ChainPromise
 
 try:
     __version__ = version(__name__)
@@ -16,4 +13,4 @@ except Exception:
     warn(f"Failed to set version due to:\n{traceback.format_exc()}", ImportWarning)
     __version__ = "0.0a0"
 
-__all__ = ("__version__", "Promise", "ChainPromise")
+__all__ = ("__version__", "Promise")

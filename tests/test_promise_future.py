@@ -24,20 +24,7 @@ class TestPromiseFuture(asynctest.TestCase, unittest.TestCase):
         self.assertEqual(promise.cancelled(), self.fut.cancelled())
 
     @asynctest.fail_on(unused_loop=False)
-    def test_invalid_state_promise(self):
-        promise = Promise(self.fut)
-
-        self.fut.set_result(None)
-        with self.assertRaises(InvalidStateError):
-            promise.resolve(None)
-
-        with self.assertRaises(InvalidStateError):
-            promise.reject(Exception())
-
-        self.assertFalse(promise.cancel())
-
-    @asynctest.fail_on(unused_loop=False)
-    def test_invalid_state_future(self):
+    def test_cancel_differences_between_promise_and_future(self):
         promise = Promise(self.fut)
 
         promise.resolve(None)
@@ -48,6 +35,9 @@ class TestPromiseFuture(asynctest.TestCase, unittest.TestCase):
             self.fut.set_exception(Exception())
 
         self.assertFalse(self.fut.cancel())
+        self.assertFalse(self.fut.cancelled())
+        self.assertTrue(promise.cancel())
+        self.assertTrue(promise.cancelled())
 
     async def test_external_resolution(self):
         promise = Promise(self.fut)
@@ -66,7 +56,7 @@ class TestPromiseFuture(asynctest.TestCase, unittest.TestCase):
         self.assertEqual(await self.fut, result)
 
     async def test_external_rejection(self):
-        promise = Promise(self.fut, log_unexpected_exception=False)
+        promise = Promise(self.fut, log_unhandled_exception=False)
 
         exc = Exception("test_external_rejection")
         self.fut.set_exception(exc)
@@ -74,7 +64,7 @@ class TestPromiseFuture(asynctest.TestCase, unittest.TestCase):
         self.assertAsyncRaises(exc, self.fut)
 
     async def test_rejection(self):
-        promise = Promise(self.fut, log_unexpected_exception=False)
+        promise = Promise(self.fut, log_unhandled_exception=False)
 
         exc = Exception("test_rejection")
         promise.reject(exc)
