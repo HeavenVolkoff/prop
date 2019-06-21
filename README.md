@@ -30,7 +30,7 @@ Promises with opinions for asyncio and Python 3.6+
 ## License
 
 All of the source code in this repository is available under the Mozilla Public License 2.0 (MPL).
-Those that require reproduction of the license text in the distribution are given [here](./LICENSE).
+Those that require reproduction of the license text in the distribution are given [here](./LICENSE.md).
 
 ## Copyright
 
