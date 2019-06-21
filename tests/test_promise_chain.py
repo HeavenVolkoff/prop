@@ -1,11 +1,9 @@
 # Internal
 import unittest
-from asyncio import Future, CancelledError, sleep as asleep, get_event_loop
+from asyncio import Future, CancelledError, sleep as asleep
 
 # External
 import asynctest
-
-# External
 from prop import Promise
 
 DEFAULT_SLEEP = 0.05
@@ -20,13 +18,19 @@ async def sum_with_sleep(x, y):
 @asynctest.strict
 class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
     async def setUp(self):
-        self.fut: Future = self.loop.create_future()
-        self.exception_ctx = None
+        self.fut = self.loop.create_future()
+        self.exc_ctx = None
+        self.exc_ctx_count = 0
 
-        self.loop.set_exception_handler(lambda l, c: setattr(self, "exception_ctx", c))
+        def exc_handler(_, ctx):
+            self.exc_ctx = ctx
+            self.exc_ctx_count += 1
+
+        self.loop.set_exception_handler(exc_handler)
 
     def tearDown(self):
         self.fut.cancel()
+        self.loop.set_exception_handler(None)
 
     async def test_resolve(self):
         with Promise(self.fut) as p:
@@ -76,12 +80,53 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         # Wait till next loop cycle
         await asleep(0)
 
-        self.assertIsNotNone(self.exception_ctx)
-        self.assertIn("message", self.exception_ctx)
-        self.assertIsInstance(self.exception_ctx["exception"], RuntimeError)
+        self.assertEqual(self.exc_ctx_count, 1)
+        self.assertIsNotNone(self.exc_ctx)
+        self.assertIn("message", self.exc_ctx)
+        self.assertIsInstance(self.exc_ctx["exception"], RuntimeError)
 
         with self.assertRaises(RuntimeError):
             await p
+
+    async def test_unhandled_exception_2(self):
+        async def raise_exc(_):
+            raise RuntimeError
+
+        p = Promise(raise_exc(None)).catch(raise_exc)
+
+        with self.assertRaises(RuntimeError):
+            await p._fut  # bypass promise __await__
+
+        # Wait till next loop cycle
+        await asleep(0)
+
+        self.assertEqual(self.exc_ctx_count, 1)
+        self.assertIsNotNone(self.exc_ctx)
+        self.assertIn("message", self.exc_ctx)
+        self.assertIsInstance(self.exc_ctx["exception"], RuntimeError)
+
+        with self.assertRaises(RuntimeError):
+            await p
+
+    async def test_unhandled_exception_3(self):
+        async def raise_exc():
+            raise RuntimeError
+
+        b = {}
+        p = Promise(raise_exc()).then(lambda _: 10).lastly(lambda: b.setdefault("lastly", None))
+
+        with self.assertRaises(RuntimeError):
+            await p._fut  # bypass promise __await__
+
+        # Wait till next loop cycle
+        await asleep(0)
+
+        self.assertEqual(await p.catch(lambda exc: "success"), "success")
+        self.assertEqual(self.exc_ctx_count, 1)
+        self.assertIsNotNone(self.exc_ctx)
+        self.assertIn("message", self.exc_ctx)
+        self.assertIsInstance(self.exc_ctx["exception"], RuntimeError)
+        self.assertIn("lastly", b)
 
     async def test_ignore_unhandled_exception(self):
         async def raise_exc():
@@ -97,9 +142,40 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         # Wait till next loop cycle
         await asleep(0)
 
-        self.assertIsNone(self.exception_ctx)
+        self.assertEqual(self.exc_ctx_count, 0)
+        self.assertIsNone(self.exc_ctx)
         with self.assertRaises(RuntimeError):
             await p
+
+    async def test_ignore_unhandled_exception_2(self):
+        async def raise_exc():
+            raise RuntimeError
+
+        p = Promise(raise_exc()).catch(lambda exc: "success")
+
+        await p._fut  # bypass promise __await__
+
+        # Wait till next loop cycle
+        await asleep(0)
+
+        self.assertEqual(self.exc_ctx_count, 0)
+        self.assertIsNone(self.exc_ctx)
+        self.assertEqual(await p, "success")
+
+    async def test_ignore_unhandled_exception_3(self):
+        async def raise_exc():
+            raise RuntimeError
+
+        p = Promise(raise_exc())
+
+        with self.assertRaises(RuntimeError):
+            await p
+
+        # Wait till next loop cycle
+        await asleep(0.1)
+
+        self.assertEqual(self.exc_ctx_count, 0)
+        self.assertIsNone(self.exc_ctx)
 
     async def test_ignore_unhandled_cancellation_error(self):
         fut = self.loop.create_future()
@@ -113,7 +189,8 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         # Wait till next loop cycle
         await asleep(0)
 
-        self.assertIsNone(self.exception_ctx)
+        self.assertEqual(self.exc_ctx_count, 0)
+        self.assertIsNone(self.exc_ctx)
         with self.assertRaises(CancelledError):
             await p
 

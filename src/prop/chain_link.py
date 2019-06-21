@@ -6,7 +6,6 @@
 import typing as T
 from asyncio import Future, AbstractEventLoop, isfuture, ensure_future
 from inspect import currentframe
-from weakref import ReferenceType
 from functools import partial
 from traceback import FrameSummary, format_list, extract_stack
 
@@ -24,7 +23,7 @@ L = T.TypeVar("L")
 
 class ChainLink(T.Awaitable[K], Loopable):
     @staticmethod
-    def log_unhandled_exception(stack: FrameSummary, fut: "Future[T.Any]") -> None:
+    def log_unhandled_exception(stack: T.List[FrameSummary], fut: "Future[T.Any]") -> None:
         assert fut.done()
 
         get_loop: T.Callable[[], AbstractEventLoop] = getattr(fut, "get_loop", None)
@@ -92,7 +91,7 @@ class ChainLink(T.Awaitable[K], Loopable):
         self._stack = (
             extract_stack(f=currentframe(), limit=2)[:1]
             if stack is None
-            else (stack + extract_stack(f=currentframe(), limit=3)[:1])
+            else (stack + extract_stack(f=currentframe(), limit=4)[:1])
         )
         self._notify_chain: "Future[None]" = self.loop.create_future()
 
@@ -118,13 +117,22 @@ class ChainLink(T.Awaitable[K], Loopable):
             A Promise redirects to it's internal future __await__().
         """
         if self._clear_exc_handler is not None:
-            # TODO: Add test cases to ensure that the log is correctly being disabled
             self._clear_exc_handler()
             self._clear_exc_handler = None
+
         return self._fut.__await__()
 
     # make Promise compatible with 'yield from'.
     __iter__ = __await__
+
+    def _chain(self, coro: T.Coroutine[T.Any, T.Any, L]) -> "ChainLink[L]":
+        next_link = ChainLink(coro, loop=self.loop, stack=self._stack)
+        self._notify_chain.add_done_callback(lambda _: next_link.cancel())
+        if self._clear_exc_handler is not None:
+            self._clear_exc_handler()
+            self._clear_exc_handler = None
+
+        return next_link
 
     def done(self) -> bool:
         """Check if chain link is done.
@@ -174,9 +182,7 @@ class ChainLink(T.Awaitable[K], Loopable):
             New ChainLink that will be resolved when the callback finishes executing.
 
         """
-        next_link = ChainLink(resolve(self, resolution_cb), loop=self.loop, stack=self._stack)
-        self._notify_chain.add_done_callback(lambda _: next_link.cancel())
-        return next_link
+        return self._chain(resolve(self, resolution_cb))
 
     @T.overload
     def catch(self, rejection_cb: T.Callable[[Exception], T.Awaitable[L]]) -> "ChainLink[L]":
@@ -196,9 +202,7 @@ class ChainLink(T.Awaitable[K], Loopable):
             New ChainLink that will be resolved when the callback finishes executing.
 
         """
-        next_link = ChainLink(reject(self, rejection_cb), loop=self.loop, stack=self._stack)
-        self._notify_chain.add_done_callback(lambda _: next_link.cancel())
-        return next_link
+        return self._chain(reject(self, rejection_cb))
 
     @T.overload
     def lastly(self, fulfillment_cb: T.Callable[[], T.Awaitable[L]]) -> "ChainLink[L]":
@@ -218,9 +222,7 @@ class ChainLink(T.Awaitable[K], Loopable):
             New ChainLink that will be resolved when the callback finishes executing.
 
         """
-        next_link = ChainLink(fulfill(self, fulfillment_cb), loop=self.loop, stack=self._stack)
-        self._notify_chain.add_done_callback(lambda _: next_link.cancel())
-        return next_link
+        return self._chain(fulfill(self, fulfillment_cb))
 
 
 __all__ = ("ChainLink",)

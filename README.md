@@ -22,29 +22,27 @@ Promises with opinions for asyncio and Python 3.6+
 ## Examples
 
 ```python
-# Internal
-from asyncio import get_event_loop
-
-# External
+# pip install lxml asks prop
+import asks
 import lxml.html
 
-# External
-import asks
 from prop import Promise
+from asyncio import get_event_loop
 
 loop = get_event_loop()
 
 p = (
     Promise(asks.get("https://en.wikipedia.org/wiki/Main_Page"), loop=loop)
-    .then(lambda response: lxml.html.fromstring(response.text))
     .then(
-        lambda doc_root: doc_root.xpath(
+        lambda response: lxml.html.fromstring(response.text).xpath(
             '//*[contains(text(), "Did you know...")]/../following-sibling::*/ul//li'
         )
     )
-    .catch(lambda _: [])
-    .then(lambda lis: "\n".join(li.text_content() for li in lis))
-    .then(lambda text: "Did you know:\n" + text)
+    .catch(
+        # In case the request fails or lxml can't parse the response, continues with empty list
+        lambda _: []
+    )
+    .then(lambda lis: "\n".join(("Did you know:", *(li.text_content() for li in lis))))
     .then(print)
 )
 
@@ -54,7 +52,9 @@ loop.run_until_complete(p)
 
 ## Installation
 
-> Comming soon...
+```shell
+$ pip install prop
+```
 
 ## License
 

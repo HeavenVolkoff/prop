@@ -1,2 +1,3 @@
 asks
 lxml
+-e ../..
