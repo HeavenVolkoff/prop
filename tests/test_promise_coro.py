@@ -4,6 +4,8 @@ from asyncio import sleep
 
 # External
 import asynctest
+
+# External
 from prop import Promise
 
 SUCCESS_RESULT = 10

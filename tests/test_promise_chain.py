@@ -4,6 +4,8 @@ from asyncio import Future, CancelledError, sleep as asleep, get_event_loop
 
 # External
 import asynctest
+
+# External
 from prop import Promise
 
 DEFAULT_SLEEP = 0.05

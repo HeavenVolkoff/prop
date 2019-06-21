@@ -4,6 +4,8 @@ from asyncio import Future, CancelledError, InvalidStateError
 
 # External
 import asynctest
+
+# External
 from prop import Promise
 
 
