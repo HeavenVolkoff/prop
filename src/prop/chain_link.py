@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 # Internal
 import typing as T
 from asyncio import Future, AbstractEventLoop, isfuture, ensure_future
@@ -37,7 +41,7 @@ class ChainLink(T.Awaitable[K], Loopable):
                     "future": fut,
                     "message": (
                         "Unhandled exception propagated through promise:\n"
-                        + format_list([stack])[0]
+                        + "".join(format_list(stack))[:-1]
                     ),
                     "exception": exc,
                 }
@@ -61,6 +65,9 @@ class ChainLink(T.Awaitable[K], Loopable):
             kwargs: Keyword parameters for super.
 
         """
+        # TODO: Add a test case for stack propagation
+        stack = kwargs.pop("stack", None)
+
         if loop is None:
             # Retrieve loop from awaitable if available
             if isinstance(awaitable, AbstractLoopable):
@@ -80,7 +87,8 @@ class ChainLink(T.Awaitable[K], Loopable):
             if awaitable is None
             else ensure_future(awaitable, loop=self.loop)
         )
-        self._stack = extract_stack(f=currentframe(), limit=2)[0]
+        # TODO: Add a test case for stack propagation
+        self._stack = extract_stack(f=currentframe(), limit=2)[:1] if stack is None else (stack + extract_stack(f=currentframe(), limit=3)[:1])
         self._notify_chain: "Future[None]" = self.loop.create_future()
 
         # Schedule exception handler
@@ -105,6 +113,8 @@ class ChainLink(T.Awaitable[K], Loopable):
             A Promise redirects to it's internal future __await__().
         """
         if self._clear_exc_handler is not None:
+            # TODO: Add test cases to ensure that the log is correcly being disabled
+            # FIXME: Disabling log is not working correctly
             self._clear_exc_handler()
             self._clear_exc_handler = None
         return self._fut.__await__()
@@ -160,7 +170,7 @@ class ChainLink(T.Awaitable[K], Loopable):
             New ChainLink that will be resolved when the callback finishes executing.
 
         """
-        next_link = ChainLink(resolve(self._fut, resolution_cb), loop=self.loop)
+        next_link = ChainLink(resolve(self._fut, resolution_cb), loop=self.loop, stack=self._stack)
         self._notify_chain.add_done_callback(lambda _: next_link.cancel())
         return next_link
 
@@ -182,7 +192,7 @@ class ChainLink(T.Awaitable[K], Loopable):
             New ChainLink that will be resolved when the callback finishes executing.
 
         """
-        next_link = ChainLink(reject(self._fut, rejection_cb), loop=self.loop)
+        next_link = ChainLink(reject(self._fut, rejection_cb), loop=self.loop, stack=self._stack)
         self._notify_chain.add_done_callback(lambda _: next_link.cancel())
         return next_link
 
@@ -204,7 +214,7 @@ class ChainLink(T.Awaitable[K], Loopable):
             New ChainLink that will be resolved when the callback finishes executing.
 
         """
-        next_link = ChainLink(fulfill(self._fut, fulfillment_cb), loop=self.loop)
+        next_link = ChainLink(fulfill(self._fut, fulfillment_cb), loop=self.loop, stack=self._stack)
         self._notify_chain.add_done_callback(lambda _: next_link.cancel())
         return next_link
 

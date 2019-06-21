@@ -13,10 +13,10 @@ before_install:
     - pip --no-cache install -U pip setuptools
 
 install:
-    - pip install ".[tests]"
+    - pip install -qe ".[tests]"
 
 script:
-    - coverage run -m unittest discover -s tests
+    - env PYTHONPATH="./src" coverage run -m unittest discover -s tests
 
 after_success:
-    - codecov
+    - codecov --gcov-root ./src/ --required
