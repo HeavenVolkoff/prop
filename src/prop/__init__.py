@@ -10,7 +10,7 @@ from .promise import Promise
 
 try:
     __version__ = version(__name__)
-except Exception:
+except Exception:  # pragma: no cover
     import traceback
     from warnings import warn
 
