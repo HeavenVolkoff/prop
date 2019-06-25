@@ -488,6 +488,21 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         self.assertEqual(await p, 10)
         self.assertFalse(b)
 
+    @asynctest.fail_on(unused_loop=False)
+    def test_base_exception(self):
+        from asyncio import new_event_loop
+        from prop._helper import fulfill
+
+        loop = new_event_loop()
+
+        fut = loop.create_future()
+        fut.set_exception(KeyboardInterrupt)
+
+        with self.assertRaises(KeyboardInterrupt):
+            loop.run_until_complete(fulfill(fut, lambda: None))
+
+        loop.close()
+
 
 if __name__ == "__main__":
     unittest.main()

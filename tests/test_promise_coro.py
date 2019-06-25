@@ -4,8 +4,6 @@ from asyncio import sleep
 
 # External
 import asynctest
-
-# External
 from prop import Promise
 
 SUCCESS_RESULT = 10
@@ -46,6 +44,22 @@ class TestPromiseCoro(asynctest.TestCase, unittest.TestCase):
     async def test_coro_exception(self):
         with self.assertRaises(RuntimeError):
             await Promise(exception_sleep(), loop=self.loop)
+
+    async def test_coro_resolve(self):
+        p = Promise(success_sleep(), loop=self.loop)
+
+        with self.assertRaisesRegex(RuntimeError, "Task does not support set_result operation"):
+            p.resolve(None)
+
+        self.assertEqual(await p, SUCCESS_RESULT)
+
+    async def test_coro_reject(self):
+        p = Promise(success_sleep(), loop=self.loop)
+
+        with self.assertRaisesRegex(RuntimeError, "Task does not support set_exception operation"):
+            p.reject(Exception("Should Fail"))
+
+        self.assertEqual(await p, SUCCESS_RESULT)
 
 
 if __name__ == "__main__":

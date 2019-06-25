@@ -65,7 +65,6 @@ class ChainLink(T.Awaitable[K], Loopable):
             kwargs: Keyword parameters for super.
 
         """
-        # TODO: Add a test case for stack propagation
         stack = kwargs.pop("stack", None)
 
         if loop is None:
@@ -87,8 +86,7 @@ class ChainLink(T.Awaitable[K], Loopable):
             if awaitable is None
             else ensure_future(awaitable, loop=self.loop)
         )
-        # TODO: Add a test case for stack propagation
-        self._stack = (
+        self._stack: T.List[FrameSummary] = (
             extract_stack(f=currentframe(), limit=2)[:1]
             if stack is None
             else (stack + extract_stack(f=currentframe(), limit=4)[:1])
