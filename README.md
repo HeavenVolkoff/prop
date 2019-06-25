@@ -1,8 +1,9 @@
 # Prop
 
-![alt text](https://img.shields.io/badge/HeavenVolkoff/prop-black.svg?style=for-the-badge&logo=github "Project Badge")
-![alt text](https://img.shields.io/github/tag/HeavenVolkoff/prop.svg?label=version&style=for-the-badge "Version Badge")
-![alt test](https://img.shields.io/github/license/HeavenVolkoff/prop.svg?style=for-the-badge "License Badge")
+[![project_badge](https://img.shields.io/badge/HeavenVolkoff/prop-black.svg?style=for-the-badge&logo=github "Project Badge")](https://github.com/HeavenVolkoff/prop)
+[![version_badge](https://img.shields.io/github/tag/HeavenVolkoff/prop.svg?label=version&style=for-the-badge "Version Badge")](https://github.com/HeavenVolkoff/prop/releases/latest)
+[![coverage_badge](https://img.shields.io/codecov/c/gh/HeavenVolkoff/prop.svg?style=for-the-badge "Coverage Badge")](https://codecov.io/gh/HeavenVolkoff/prop)
+[![license_badge](https://img.shields.io/github/license/HeavenVolkoff/prop.svg?style=for-the-badge "License Badge")](https://www.mozilla.org/en-US/MPL/2.0/)
 
 Promises with opinions for asyncio and Python 3.6+
 
