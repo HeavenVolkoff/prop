@@ -1,72 +1,61 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 # Internal
+import sys
 import typing as T
+from asyncio import Task
 
 # Project
-from .chain_promise import ChainPromise, ChainLinkPromise
+from .chain_link import ChainLink
 
 # Generic types
 K = T.TypeVar("K")
-L = T.TypeVar("L")
 
 
-class Promise(ChainPromise[K], T.ContextManager["Promise[K]"]):
-    def __init__(
-        self,
-        awaitable: T.Optional[T.Union[T.Awaitable[K], T.Coroutine[T.Any, T.Any, K]]] = None,
-        *,
-        warn_no_management: bool = True,
-        **kwargs: T.Any,
-    ) -> None:
-        super().__init__(awaitable, **kwargs)
-
-        self._is_managed = not warn_no_management
+class Promise(ChainLink[K], T.ContextManager["Promise[K]"]):
+    """An Promise implementation that encapsulate an awaitable."""
 
     def __enter__(self) -> "Promise[K]":
-        self._is_managed = True
         return self
 
-    def __exit__(self, _: T.Any, __: T.Any, ___: T.Any) -> T.Optional[bool]:
-        self.cancel(chain=True)
-        return False
+    def __exit__(self, exc_type: T.Any, exc_val: T.Any, exc_tb: T.Any) -> None:
+        self.cancel()
 
-    def _assert_management(self) -> None:
-        if self._is_managed:
-            return
+    def resolve(self, result: K) -> None:
+        """Resolve Promise with given value.
 
-        self.loop.call_exception_handler(
-            {"message": f"{self} is being chained without proper life-cycle management."}
-        )
+        Arguments:
+            result: Result to resolve Promise with.
 
-    def then(
-        self, on_fulfilled: T.Callable[[K], T.Union[L, T.Awaitable[L]]]
-    ) -> ChainLinkPromise[L, K]:
-        """Add management control to then
-
-        See: :meth:`~.promise.Promise.then` for more information.
+        Raises:
+            RuntimeError: Raised when attempting to resolve a Task
+            InvalidStateError: Raised when promise was already resolved
 
         """
-        self._assert_management()
-        return super().then(on_fulfilled)
+        if sys.version_info < (3, 7) and isinstance(self._fut, Task):
+            # This is needs to exist because it's incorrectly allowed on Python <= 3.6
+            raise RuntimeError("Task does not support set_result operation")
 
-    def catch(
-        self, on_reject: T.Callable[[Exception], T.Union[L, T.Awaitable[L]]]
-    ) -> ChainLinkPromise[T.Union[L, K], K]:
-        """Add management control to catch
+        self._fut.set_result(result)
 
-        See: :meth:`~.promise.Promise.catch` for more information.
+    def reject(self, error: Exception) -> None:
+        """Reject promise with given value.
 
-        """
-        self._assert_management()
-        return super().catch(on_reject)
+        Arguments:
+            error: Error to reject Promise with.
 
-    def lastly(self, on_resolved: T.Callable[[], T.Any]) -> ChainLinkPromise[K, K]:
-        """Add management control to lastly
-
-        See: :meth:`~.promise.Promise.lastly` for more information.
+        Raises:
+            RuntimeError: Raised when attempting to reject a Task
+            InvalidStateError: Raised when promise was already resolved
 
         """
-        self._assert_management()
-        return super().lastly(on_resolved)
+        if sys.version_info < (3, 7) and isinstance(self._fut, Task):
+            # This is needs to exist because it's incorrectly allowed on Python < 3.7
+            raise RuntimeError("Task does not support set_exception operation")
+
+        self._fut.set_exception(error)
 
 
 __all__ = ("Promise",)

@@ -1,5 +1,4 @@
-# Mozilla Public License
-Version 2.0
+# Mozilla Public License Version 2.0
 
 ## 1\. Definitions
 
@@ -23,9 +22,9 @@ means Source Code Form to which the initial Contributor has attached the notice 
 
 means
 
-1.  that the initial Contributor has attached the notice described in Exhibit B to the Covered Software; or
+1. that the initial Contributor has attached the notice described in Exhibit B to the Covered Software; or
 
-2.  that the Covered Software was made available under the terms of version 1.1 or earlier of the License, but not also under the terms of a Secondary License.
+2. that the Covered Software was made available under the terms of version 1.1 or earlier of the License, but not also under the terms of a Secondary License.
 
 ### 1.6\. “Executable Form”
 
@@ -47,9 +46,9 @@ means having the right to grant, to the maximum extent possible, whether at the 
 
 means any of the following:
 
-1.  any file in Source Code Form that results from an addition to, deletion from, or modification of the contents of Covered Software; or
+1. any file in Source Code Form that results from an addition to, deletion from, or modification of the contents of Covered Software; or
 
-2.  any new file in Source Code Form that contains any Covered Software.
+2. any new file in Source Code Form that contains any Covered Software.
 
 ### 1.11\. “Patent Claims” of a Contributor
 
@@ -73,9 +72,9 @@ means an individual or a legal entity exercising rights under this License. For 
 
 Each Contributor hereby grants You a world-wide, royalty-free, non-exclusive license:
 
-1.  under intellectual property rights (other than patent or trademark) Licensable by such Contributor to use, reproduce, make available, modify, display, perform, distribute, and otherwise exploit its Contributions, either on an unmodified basis, with Modifications, or as part of a Larger Work; and
+1. under intellectual property rights (other than patent or trademark) Licensable by such Contributor to use, reproduce, make available, modify, display, perform, distribute, and otherwise exploit its Contributions, either on an unmodified basis, with Modifications, or as part of a Larger Work; and
 
-2.  under Patent Claims of such Contributor to make, use, sell, offer for sale, have made, import, and otherwise transfer either its Contributions or its Contributor Version.
+2. under Patent Claims of such Contributor to make, use, sell, offer for sale, have made, import, and otherwise transfer either its Contributions or its Contributor Version.
 
 ### 2.2\. Effective Date
 
@@ -85,11 +84,11 @@ The licenses granted in Section 2.1 with respect to any Contribution become effe
 
 The licenses granted in this Section 2 are the only rights granted under this License. No additional rights or licenses will be implied from the distribution or licensing of Covered Software under this License. Notwithstanding Section 2.1(b) above, no patent license is granted by a Contributor:
 
-1.  for any code that a Contributor has removed from Covered Software; or
+1. for any code that a Contributor has removed from Covered Software; or
 
-2.  for infringements caused by: (i) Your and any other third party’s modifications of Covered Software, or (ii) the combination of its Contributions with other software (except as part of its Contributor Version); or
+2. for infringements caused by: (i) Your and any other third party’s modifications of Covered Software, or (ii) the combination of its Contributions with other software (except as part of its Contributor Version); or
 
-3.  under Patent Claims infringed by Covered Software in the absence of its Contributions.
+3. under Patent Claims infringed by Covered Software in the absence of its Contributions.
 
 This License does not grant any rights in the trademarks, service marks, or logos of any Contributor (except as may be necessary to comply with the notice requirements in Section 3.4).
 
@@ -119,9 +118,9 @@ All distribution of Covered Software in Source Code Form, including any Modifica
 
 If You distribute Covered Software in Executable Form then:
 
-1.  such Covered Software must also be made available in Source Code Form, as described in Section 3.1, and You must inform recipients of the Executable Form how they can obtain a copy of such Source Code Form by reasonable means in a timely manner, at a charge no more than the cost of distribution to the recipient; and
+1. such Covered Software must also be made available in Source Code Form, as described in Section 3.1, and You must inform recipients of the Executable Form how they can obtain a copy of such Source Code Form by reasonable means in a timely manner, at a charge no more than the cost of distribution to the recipient; and
 
-2.  You may distribute such Executable Form under the terms of this License, or sublicense it under different terms, provided that the license for the Executable Form does not attempt to limit or alter the recipients’ rights in the Source Code Form under this License.
+2. You may distribute such Executable Form under the terms of this License, or sublicense it under different terms, provided that the license for the Executable Form does not attempt to limit or alter the recipients’ rights in the Source Code Form under this License.
 
 ### 3.3\. Distribution of a Larger Work
 
@@ -183,7 +182,7 @@ If You choose to distribute Source Code Form that is Incompatible With Secondary
 
 ## Exhibit A - Source Code Form License Notice
 
-> This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0\. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+> This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0\. If a copy of the MPL was not distributed with this file, You can obtain one at <https://mozilla.org/MPL/2.0/.>
 
 If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
 

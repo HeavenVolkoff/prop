@@ -1,6 +1,6 @@
 # Internal
 import unittest
-from asyncio import Future, CancelledError, InvalidStateError, sleep as asleep
+from asyncio import Future, CancelledError, sleep as asleep
 
 # External
 import asynctest
@@ -18,13 +18,19 @@ async def sum_with_sleep(x, y):
 @asynctest.strict
 class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
     async def setUp(self):
-        self.fut: Future = self.loop.create_future()
-        self.exception_ctx = None
+        self.fut = self.loop.create_future()
+        self.exc_ctx = None
+        self.exc_ctx_count = 0
 
-        self.loop.set_exception_handler(lambda l, c: setattr(self, "exception_ctx", c))
+        def exc_handler(_, ctx):
+            self.exc_ctx = ctx
+            self.exc_ctx_count += 1
+
+        self.loop.set_exception_handler(exc_handler)
 
     def tearDown(self):
         self.fut.cancel()
+        self.loop.set_exception_handler(None)
 
     async def test_resolve(self):
         with Promise(self.fut) as p:
@@ -32,31 +38,6 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
             result = await p.then(lambda x: x * 2).then(lambda x: x + 2).then(lambda x: x / 2)
 
         self.assertEqual(result, 11)
-
-    async def test_resolve_no_management(self):
-        self.fut.set_result(10)
-        result = (
-            await Promise(self.fut)
-            .then(lambda x: x * 2)
-            .then(lambda x: x + 2)
-            .then(lambda x: x / 2)
-        )
-
-        self.assertEqual(result, 11)
-        self.assertIsNotNone(self.exception_ctx)
-        self.assertIn("message", self.exception_ctx)
-
-    async def test_resolve_disable_management(self):
-        self.fut.set_result(10)
-        result = (
-            await Promise(self.fut, warn_no_management=False)
-            .then(lambda x: x * 2)
-            .then(lambda x: x + 2)
-            .then(lambda x: x / 2)
-        )
-
-        self.assertEqual(result, 11)
-        self.assertIsNone(self.exception_ctx)
 
     async def test_reject(self):
         temp = {}
@@ -85,20 +66,133 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         self.assertIn("lastly", temp)
         self.assertEqual(temp["lastly"], 100)
 
-    async def test_unexpected_exception(self):
+    async def test_unhandled_exception(self):
         async def raise_exc():
             raise RuntimeError
 
         task = self.loop.create_task(raise_exc())
 
-        Promise(task)
+        p = Promise(task)
 
         with self.assertRaises(RuntimeError):
             await task
 
-        self.assertIsNotNone(self.exception_ctx)
-        self.assertIn("message", self.exception_ctx)
-        self.assertIsInstance(self.exception_ctx["exception"], RuntimeError)
+        # Wait till next loop cycle
+        await asleep(0)
+
+        self.assertEqual(self.exc_ctx_count, 1)
+        self.assertIsNotNone(self.exc_ctx)
+        self.assertIn("message", self.exc_ctx)
+        self.assertIsInstance(self.exc_ctx["exception"], RuntimeError)
+
+        with self.assertRaises(RuntimeError):
+            await p
+
+    async def test_unhandled_exception_2(self):
+        async def raise_exc(_):
+            raise RuntimeError
+
+        p = Promise(raise_exc(None)).catch(raise_exc)
+
+        with self.assertRaises(RuntimeError):
+            await p._fut  # bypass promise __await__
+
+        # Wait till next loop cycle
+        await asleep(0)
+
+        self.assertEqual(self.exc_ctx_count, 1)
+        self.assertIsNotNone(self.exc_ctx)
+        self.assertIn("message", self.exc_ctx)
+        self.assertIsInstance(self.exc_ctx["exception"], RuntimeError)
+
+        with self.assertRaises(RuntimeError):
+            await p
+
+    async def test_unhandled_exception_3(self):
+        async def raise_exc():
+            raise RuntimeError
+
+        b = {}
+        p = Promise(raise_exc()).then(lambda _: 10).lastly(lambda: b.setdefault("lastly", None))
+
+        with self.assertRaises(RuntimeError):
+            await p._fut  # bypass promise __await__
+
+        # Wait till next loop cycle
+        await asleep(0)
+
+        self.assertEqual(await p.catch(lambda exc: "success"), "success")
+        self.assertEqual(self.exc_ctx_count, 1)
+        self.assertIsNotNone(self.exc_ctx)
+        self.assertIn("message", self.exc_ctx)
+        self.assertIsInstance(self.exc_ctx["exception"], RuntimeError)
+        self.assertIn("lastly", b)
+
+    async def test_ignore_unhandled_exception(self):
+        async def raise_exc():
+            raise RuntimeError
+
+        task = self.loop.create_task(raise_exc())
+
+        p = Promise(task, log_unhandled_exception=False)
+
+        with self.assertRaises(RuntimeError):
+            await task
+
+        # Wait till next loop cycle
+        await asleep(0)
+
+        self.assertEqual(self.exc_ctx_count, 0)
+        self.assertIsNone(self.exc_ctx)
+        with self.assertRaises(RuntimeError):
+            await p
+
+    async def test_ignore_unhandled_exception_2(self):
+        async def raise_exc():
+            raise RuntimeError
+
+        p = Promise(raise_exc()).catch(lambda exc: "success")
+
+        await p._fut  # bypass promise __await__
+
+        # Wait till next loop cycle
+        await asleep(0)
+
+        self.assertEqual(self.exc_ctx_count, 0)
+        self.assertIsNone(self.exc_ctx)
+        self.assertEqual(await p, "success")
+
+    async def test_ignore_unhandled_exception_3(self):
+        async def raise_exc():
+            raise RuntimeError
+
+        p = Promise(raise_exc())
+
+        with self.assertRaises(RuntimeError):
+            await p
+
+        # Wait till next loop cycle
+        await asleep(0.1)
+
+        self.assertEqual(self.exc_ctx_count, 0)
+        self.assertIsNone(self.exc_ctx)
+
+    async def test_ignore_unhandled_cancellation_error(self):
+        fut = self.loop.create_future()
+
+        p = Promise(fut)
+
+        fut.cancel()
+        with self.assertRaises(CancelledError):
+            await fut
+
+        # Wait till next loop cycle
+        await asleep(0)
+
+        self.assertEqual(self.exc_ctx_count, 0)
+        self.assertIsNone(self.exc_ctx)
+        with self.assertRaises(CancelledError):
+            await p
 
     async def test_resolve_promises_inception(self):
         start_time = self.loop.time()
@@ -150,7 +244,7 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         self.assertTrue(t.cancelled())
 
         self.assertTrue(p.done())
-        self.assertFalse(p.cancelled())
+        self.assertTrue(p.cancelled())
 
     async def test_cancellation_lastly(self):
         temp = {}
@@ -158,10 +252,12 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
             p.cancel()
 
             with self.assertRaises(CancelledError):
-                await p.then(lambda x: x * 2).lastly(lambda: temp.setdefault("lastly", 100))
+                await p.then(lambda x: temp.setdefault("then", x)).lastly(
+                    lambda: temp.setdefault("lastly", 100)
+                )
 
-        self.assertIn("lastly", temp)
-        self.assertEqual(temp["lastly"], 100)
+        self.assertNotIn("then", temp)
+        self.assertNotIn("lastly", temp)
 
         self.assertTrue(p.done())
         self.assertTrue(p.cancelled())
@@ -197,17 +293,17 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         self.assertTrue(p.cancelled())
         self.assertNotIn("then", temp)
         self.assertNotIn("catch", temp)
-        self.assertIn("lastly", temp)
+        self.assertNotIn("lastly", temp)
 
     async def test_chain_no_external_resolve(self):
         with Promise(self.fut) as p:
+            self.assertTrue(callable(getattr(p, "resolve")))
+            self.assertTrue(callable(getattr(p, "reject")))
+
             t = p.then(lambda x: x * 2)
 
-            with self.assertRaises(InvalidStateError):
-                t.resolve(None)
-
-            with self.assertRaises(InvalidStateError):
-                t.reject(Exception())
+            self.assertFalse(hasattr(t, "resolve"))
+            self.assertFalse(hasattr(t, "reject"))
 
             p.resolve(10)
             result = await t
@@ -224,7 +320,7 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
             self.assertEqual(await p, 10)
 
         with self.assertRaises(CancelledError):
-            await p.notify_chain
+            await p._notify_chain
 
         self.assertEqual(await t1, 20)
         self.assertEqual(await t2, 40)
@@ -265,7 +361,7 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
             self.assertEqual(await t2, 20)
             self.assertEqual(await t3, 20)
 
-    async def test_chain_cancellation_after_resolution(self):
+    async def test_chain_after_cancellation_after_resolution(self):
         with Promise(self.fut) as p:
             p.resolve(10)
 
@@ -290,7 +386,7 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
 
             t2 = t1.then(lambda x: sum_with_sleep(x, 10))
 
-            t1.cancel(chain=True)
+            t1.cancel()
 
             with self.assertRaises(CancelledError):
                 await t2
@@ -306,7 +402,7 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
 
             t2 = t1.then(lambda x: sum_with_sleep(x, 10))
 
-            p.cancel(chain=True)
+            p.cancel()
 
             with self.assertRaises(CancelledError):
                 await t2
@@ -318,7 +414,7 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
             self.assertEqual(await p, 10)
 
         with self.assertRaises(CancelledError):
-            await p.notify_chain
+            await p._notify_chain
 
         self.assertEqual(await t1, 20)
 
@@ -327,28 +423,85 @@ class TestPromiseChain(asynctest.TestCase, unittest.TestCase):
         with self.assertRaises(CancelledError):
             await t2
 
-    async def test_task_cancellation_false(self):
+    async def test_task_cancellation(self):
+        a = {}
+
         async def task(_):
-            t1.cancel(task=False)
+            t1.cancel()
+            a["test"] = 10
             await asleep(DEFAULT_SLEEP)
-            return 0
+            a["shouldnt_exist"] = 10
 
         with Promise(self.fut) as p:
             p.resolve(10)
             t1 = p.then(task)
-            self.assertEqual(await t1, 0)
-
-    async def test_task_cancellation_true(self):
-        async def task(_):
-            t1.cancel(task=True)
-            await asleep(DEFAULT_SLEEP)
-            return 0
-
-        with Promise(self.fut) as p:
-            p.resolve(10)
-            t1 = p.then(task)
+            self.assertNotIn("test", a)
+            self.assertNotIn("shouldnt_exist", a)
             with self.assertRaises(CancelledError):
                 await t1
+            self.assertIn("test", a)
+            self.assertNotIn("shouldnt_exist", a)
+
+    async def test_promise_of_a_promise(self):
+        p = Promise()
+        p2 = Promise(p)
+
+        p.resolve(0)
+
+        self.assertEqual(await p2.then(lambda x: 1 / x).catch(lambda exc: 0), 0)
+
+    async def test_promise_cancelled(self):
+        b = False
+
+        async def a():
+            nonlocal b
+            b = True
+
+        p = Promise()
+        lp = p.lastly(a)
+
+        p.cancel()
+
+        with self.assertRaises(CancelledError):
+            await p
+        with self.assertRaises(CancelledError):
+            await lp
+
+        self.assertFalse(b)
+
+    async def test_promise_cancelled_2(self):
+        b = False
+
+        async def a():
+            nonlocal b
+            b = True
+
+        p = Promise()
+        lp = p.lastly(a)
+
+        p.resolve(10)
+        lp.cancel()
+
+        with self.assertRaises(CancelledError):
+            await lp
+
+        self.assertEqual(await p, 10)
+        self.assertFalse(b)
+
+    @asynctest.fail_on(unused_loop=False)
+    def test_base_exception(self):
+        from asyncio import new_event_loop
+        from prop._helper import fulfill
+
+        loop = new_event_loop()
+
+        fut = loop.create_future()
+        fut.set_exception(KeyboardInterrupt)
+
+        with self.assertRaises(KeyboardInterrupt):
+            loop.run_until_complete(fulfill(fut, lambda: None))
+
+        loop.close()
 
 
 if __name__ == "__main__":

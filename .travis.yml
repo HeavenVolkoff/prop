@@ -1,14 +1,22 @@
+sudo: false
+dist: xenial
 language: python
+notifications:
+  email: false
 
 python:
     - "3.6"
     - "3.7"
+    - "3.8-dev"
 
 before_install:
     - pip --no-cache install -U pip setuptools
 
 install:
-    - pip install ".[tests]"
+    - pip install -qe ".[tests]"
 
 script:
-    - python -m unittest discover -s tests
+    - env PYTHONPATH="./src" coverage run -m unittest discover -s tests
+
+after_success:
+    - codecov --gcov-root ./src/ --required
