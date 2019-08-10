@@ -1,6 +1,6 @@
 # Internal
 import unittest
-from asyncio import Future, CancelledError, InvalidStateError
+from asyncio import Future, CancelledError, InvalidStateError, sleep
 
 # External
 import asynctest

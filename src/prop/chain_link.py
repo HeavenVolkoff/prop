@@ -4,10 +4,12 @@
 
 # Internal
 import typing as T
-from asyncio import Future, AbstractEventLoop, isfuture, ensure_future
+from asyncio import Future, CancelledError, AbstractEventLoop, isfuture, ensure_future
 from inspect import currentframe
+from weakref import proxy
 from functools import partial
-from traceback import FrameSummary, format_list, extract_stack
+from traceback import FrameSummary, StackSummary, format_list, extract_stack
+from contextlib import suppress
 
 # External
 from async_tools import Loopable
@@ -20,10 +22,13 @@ from ._helper import reject, fulfill, resolve
 K = T.TypeVar("K")
 L = T.TypeVar("L")
 
+# Fake stacktrace information for use when no stack can be recovered from promise
+_FAKE_STACK = list(StackSummary.from_list([("unknown", 0, "unknown", "invalid")]))
+
 
 class ChainLink(T.Awaitable[K], Loopable):
     @staticmethod
-    def log_unhandled_exception(stack: T.List[FrameSummary], fut: "Future[T.Any]") -> None:
+    def log_unhandled_exception(promise: "ChainLink[T.Any]", fut: "Future[T.Any]") -> None:
         assert fut.done()
 
         get_loop: T.Callable[[], AbstractEventLoop] = getattr(fut, "get_loop", None)
@@ -31,21 +36,28 @@ class ChainLink(T.Awaitable[K], Loopable):
 
         assert loop is not None
 
-        if fut.cancelled():
+        # noinspection PyUnusedLocal
+        stack = _FAKE_STACK
+        # noinspection PyUnusedLocal
+        suppress_log = True
+        with suppress(ReferenceError):
+            stack = promise._stack
+            suppress_log = promise._clear_exc_handler is None
+
+        exc = None if fut.cancelled() else fut.exception()
+        if isinstance(exc, CancelledError) or suppress_log or exc is None:
             return
 
-        exc = fut.exception()
-        if exc is not None:
-            loop.call_exception_handler(
-                {
-                    "future": fut,
-                    "message": (
-                        "Unhandled exception propagated through promise:\n"
-                        + "".join(format_list(stack))[:-1]
-                    ),
-                    "exception": exc,
-                }
-            )
+        loop.call_exception_handler(
+            {
+                "future": fut,
+                "message": (
+                    "Unhandled exception propagated through promise:\n"
+                    + "".join(format_list(stack))[:-1]
+                ),
+                "exception": exc,
+            }
+        )
 
     def __init__(
         self,
@@ -95,7 +107,7 @@ class ChainLink(T.Awaitable[K], Loopable):
 
         # Schedule exception handler
         if log_unhandled_exception:
-            exc_handler = partial(self.log_unhandled_exception, self._stack)
+            exc_handler = partial(self.log_unhandled_exception, proxy(self))
             self._fut.add_done_callback(exc_handler)
             self._clear_exc_handler: T.Optional[T.Callable[[], T.Any]] = partial(
                 self._fut.remove_done_callback, exc_handler

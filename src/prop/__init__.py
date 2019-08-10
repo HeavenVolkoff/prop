@@ -3,13 +3,13 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 # External
-from importlib_metadata import version
+from importlib_metadata import version  # type: ignore
 
 # Project
 from .promise import Promise
 
 try:
-    __version__ = version(__name__)
+    __version__: str = version(__name__)
 except Exception:  # pragma: no cover
     import traceback
     from warnings import warn

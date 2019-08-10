@@ -1,0 +1,3 @@
+--strict
+--package=prop
+--implicit-reexport

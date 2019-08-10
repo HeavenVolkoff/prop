@@ -23,7 +23,7 @@ class Promise(ChainLink[K], T.ContextManager["Promise[K]"]):
     def __exit__(self, exc_type: T.Any, exc_val: T.Any, exc_tb: T.Any) -> None:
         self.cancel()
 
-    def resolve(self, result: K) -> None:
+    def resolve(self, result: K) -> "Promise[K]":
         """Resolve Promise with given value.
 
         Arguments:
@@ -40,7 +40,9 @@ class Promise(ChainLink[K], T.ContextManager["Promise[K]"]):
 
         self._fut.set_result(result)
 
-    def reject(self, error: Exception) -> None:
+        return self
+
+    def reject(self, error: T.Union[type, BaseException]) -> "Promise[K]":
         """Reject promise with given value.
 
         Arguments:
@@ -56,6 +58,8 @@ class Promise(ChainLink[K], T.ContextManager["Promise[K]"]):
             raise RuntimeError("Task does not support set_exception operation")
 
         self._fut.set_exception(error)
+
+        return self
 
 
 __all__ = ("Promise",)
