@@ -1,4 +1,4 @@
-# Prop
+# Prop (DEPRECATED)
 
 [![project_badge](https://img.shields.io/badge/HeavenVolkoff/prop-black.svg?style=for-the-badge&logo=github "Project Badge")](https://github.com/HeavenVolkoff/prop)
 [![version_badge](https://img.shields.io/github/tag/HeavenVolkoff/prop.svg?label=version&style=for-the-badge "Version Badge")](https://github.com/HeavenVolkoff/prop/releases/latest)
@@ -64,4 +64,4 @@ Those that require reproduction of the license text in the distribution are give
 
 ## Copyright
 
-    Copyright (c) 2018 Vítor Augusto da Silva Vasconcellos. All rights reserved.
+    Copyright (c) 2018-2023 Vítor Vasconcellos. All rights reserved.
